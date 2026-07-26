@@ -1,4 +1,7 @@
-mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose', fontFamily: 'Noto Sans KR, sans-serif' });
+mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose', fontFamily: 'Noto Sans KR, sans-serif' });
+(document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(function () {
+  mermaid.run({ querySelector: '.mermaid' });
+});
 
 document.addEventListener('DOMContentLoaded', function () {
   const ALLOWED = new Set(['python', 'bash', 'shell', 'sh', 'yaml', 'json', 'javascript', 'js', 'html', 'css', 'sql']);

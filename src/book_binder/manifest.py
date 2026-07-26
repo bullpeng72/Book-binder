@@ -75,6 +75,7 @@ class BookConfig:
     order: OrderConfig | None = None
     tip_markers: list[str] = field(default_factory=lambda: list(DEFAULT_TIP_MARKERS))
     section_id_overrides: dict[str, str] = field(default_factory=dict)
+    custom_css: str | None = None
 
     @classmethod
     def load(cls, root: Path) -> BookConfig | None:
@@ -101,10 +102,27 @@ class BookConfig:
             order=order,
             tip_markers=list(callouts.get("tip_markers", DEFAULT_TIP_MARKERS)),
             section_id_overrides=data.get("section_id_overrides", {}),
+            custom_css=data.get("custom_css"),
         )
 
     def locale(self) -> dict[str, str]:
         return LOCALE_STRINGS.get(self.language, LOCALE_STRINGS["ko"])
+
+    def load_custom_css(self, root: Path) -> str:
+        """book.yaml의 custom_css가 가리키는 파일을 읽는다.
+
+        코퍼스별 raw-HTML 다이어그램(@@HTML_START@@ 블록)이 쓰는 커스텀
+        클래스는 book_binder의 범용 템플릿에 넣을 수 없다 — 코퍼스마다
+        다이어그램 종류가 다르기 때문이다. 대신 각 코퍼스가 자기 CSS를
+        선언하면 HTML/PDF 빌드 모두에 그대로 얹는다.
+        """
+        if not self.custom_css:
+            return ""
+        path = root / self.custom_css
+        if not path.is_file():
+            print(f"  ⚠️  custom_css 지정 파일 없음: {path}")
+            return ""
+        return path.read_text(encoding="utf-8")
 
 
 @dataclass

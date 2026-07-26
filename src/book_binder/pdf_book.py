@@ -47,7 +47,24 @@ def _rewrite_img_paths(html_str: str, base_dir: Path) -> str:
     return re.sub(r'src="([^"]+)"', _to_abs, html_str)
 
 
-def _build_pdf_page_html(body_html: str, title: str) -> str:
+def _mermaid_chunk_html(chunks: list[tuple[str, int, int]]) -> str:
+    """mermaid 컨테이너를 대체할 청크 스크린샷 <img> 마크업을 만든다."""
+    n = len(chunks)
+    parts = []
+    for ci, (fu, w, h) in enumerate(chunks):
+        mt = "14px" if ci == 0 else "0"
+        mb = "14px" if ci == n - 1 else "0"
+        parts.append(
+            f'<div class="mermaid-chunk" style="margin:{mt} 0 {mb};'
+            f'display:table;width:100%;break-inside:avoid;page-break-inside:avoid;">'
+            f'<img src="{fu}" width="{w}" height="{h}" '
+            f'style="display:block;margin:0 auto;width:{w}px;height:{h}px;max-width:none;border:none;">'
+            f"</div>"
+        )
+    return "".join(parts)
+
+
+def _build_pdf_page_html(body_html: str, title: str, custom_css: str = "") -> str:
     css = (_TEMPLATES_DIR / "html_book.css").read_text(encoding="utf-8")
     pdf_css = (_TEMPLATES_DIR / "pdf_override.css").read_text(encoding="utf-8")
     js = (_TEMPLATES_DIR / "pdf_book.js").read_text(encoding="utf-8")
@@ -64,6 +81,7 @@ def _build_pdf_page_html(body_html: str, title: str) -> str:
 <style>
 {css}
 {pdf_css}
+{custom_css}
 </style>
 </head>
 <body>
@@ -77,13 +95,17 @@ def _build_pdf_page_html(body_html: str, title: str) -> str:
 </html>"""
 
 
-async def convert_one(chapter: ChapterFile, browser, tip_pattern, *, out_path: Path) -> Path:
+async def convert_one(
+    chapter: ChapterFile, browser, tip_pattern, *, out_path: Path, custom_css: str = ""
+) -> Path:
     """챕터 하나를 PDF로 변환한다. 긴 mermaid 다이어그램은 청크 스크린샷으로 대체 삽입한다."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     raw = chapter.path.read_text(encoding="utf-8")
     body = md_to_html(raw, tip_pattern)
-    html = _rewrite_img_paths(_build_pdf_page_html(body, chapter.path.stem), chapter.path.parent)
+    html = _rewrite_img_paths(
+        _build_pdf_page_html(body, chapter.path.stem, custom_css), chapter.path.parent
+    )
 
     temp_dir = Path(tempfile.mkdtemp(prefix="book_binder_pdf_"))
     try:
@@ -97,13 +119,11 @@ async def convert_one(chapter: ChapterFile, browser, tip_pattern, *, out_path: P
         full_h = await render_page.evaluate("() => Math.max(document.body.scrollHeight, 6000)")
         await render_page.set_viewport_size({"width": _PDF_CONTENT_W, "height": full_h})
 
-        mermaid_diagrams: list[list[tuple[str, int, int]]] = []
-        n_containers = await render_page.locator(".mermaid").count()
+        containers = await render_page.query_selector_all(".mermaid")
 
-        for idx in range(n_containers):
+        for idx, container in enumerate(containers):
             try:
-                info = await render_page.evaluate(f"""() => {{
-                    const container = document.querySelectorAll('.mermaid')[{idx}];
+                info = await container.evaluate(f"""(container) => {{
                     const svg = container.querySelector('svg');
                     if (!svg) return null;
                     const r = svg.getBoundingClientRect();
@@ -118,7 +138,6 @@ async def convert_one(chapter: ChapterFile, browser, tip_pattern, *, out_path: P
                     return {{x: b.x, y: b.y, w: Math.round(b.width), h: Math.round(b.height)}};
                 }}""")
                 if not info:
-                    mermaid_diagrams.append([])
                     continue
 
                 sx, sy, tw, th = info["x"], info["y"], info["w"], info["h"]
@@ -138,44 +157,19 @@ async def convert_one(chapter: ChapterFile, browser, tip_pattern, *, out_path: P
                     chunk_path.write_bytes(png)
                     chunks.append((f"file://{chunk_path}", tw, ch))
 
-                mermaid_diagrams.append(chunks)
+                if not chunks:
+                    continue
+
+                # container 자체를 청크 이미지로 교체한다 — 문자열 정규식이 아니라
+                # DOM 노드 단위 치환이라, mermaid SVG 내부에 중첩된 <div>(foreignObject
+                # 라벨)가 몇 개든 컨테이너 경계를 잘못 잡을 일이 없다.
+                await container.evaluate("(el, html) => { el.outerHTML = html; }", _mermaid_chunk_html(chunks))
             except Exception:
-                mermaid_diagrams.append([])
                 continue
+
+        p2_html = await render_page.content()
         await render_page.close()
         await ctx1.close()
-
-        p2_html = html
-        if any(mermaid_diagrams):
-            diag_iter = iter(mermaid_diagrams)
-
-            def _replace_mermaid(m: re.Match) -> str:
-                try:
-                    chunks = next(diag_iter)
-                except StopIteration:
-                    return m.group(0)
-                if not chunks:
-                    return m.group(0)
-                n = len(chunks)
-                parts = []
-                for ci2, (fu, w, h) in enumerate(chunks):
-                    mt = "14px" if ci2 == 0 else "0"
-                    mb = "14px" if ci2 == n - 1 else "0"
-                    parts.append(
-                        f'<div class="mermaid-chunk" style="margin:{mt} 0 {mb};'
-                        f'display:table;width:100%;break-inside:avoid;page-break-inside:avoid;">'
-                        f'<img src="{fu}" width="{w}" height="{h}" '
-                        f'style="display:block;margin:0 auto;width:{w}px;height:{h}px;max-width:none;border:none;">'
-                        f"</div>"
-                    )
-                return "".join(parts)
-
-            p2_html = re.sub(
-                r'<div\s+class="mermaid"[^>]*>.*?</div>',
-                _replace_mermaid,
-                p2_html,
-                flags=re.DOTALL,
-            )
 
         html_file = temp_dir / "chapter.html"
         html_file.write_text(p2_html, encoding="utf-8")
@@ -209,7 +203,9 @@ async def convert_one(chapter: ChapterFile, browser, tip_pattern, *, out_path: P
     return out_path
 
 
-async def _run_all(chapters: list[ChapterFile], root: Path, pdf_dir: Path, tip_pattern) -> tuple[int, int]:
+async def _run_all(
+    chapters: list[ChapterFile], root: Path, pdf_dir: Path, tip_pattern, custom_css: str = ""
+) -> tuple[int, int]:
     from playwright.async_api import async_playwright
 
     ok = fail = 0
@@ -221,7 +217,7 @@ async def _run_all(chapters: list[ChapterFile], root: Path, pdf_dir: Path, tip_p
             rel = chapter.path.relative_to(root)
             out_path = pdf_dir / rel.with_suffix(".pdf")
             try:
-                await convert_one(chapter, browser, tip_pattern, out_path=out_path)
+                await convert_one(chapter, browser, tip_pattern, out_path=out_path, custom_css=custom_css)
                 ok += 1
             except Exception as exc:
                 print(f"  ❌ {rel}: {exc}")
@@ -230,7 +226,9 @@ async def _run_all(chapters: list[ChapterFile], root: Path, pdf_dir: Path, tip_p
     return ok, fail
 
 
-async def _run_merged(chapters: list[ChapterFile], out_path: Path, tip_pattern) -> bool:
+async def _run_merged(
+    chapters: list[ChapterFile], out_path: Path, tip_pattern, custom_css: str = ""
+) -> bool:
     import pypdf
     from playwright.async_api import async_playwright
 
@@ -245,7 +243,7 @@ async def _run_merged(chapters: list[ChapterFile], out_path: Path, tip_pattern) 
             try:
                 for idx, chapter in enumerate(chapters):
                     part_out = temp_dir / f"{idx:03d}.pdf"
-                    await convert_one(chapter, browser, tip_pattern, out_path=part_out)
+                    await convert_one(chapter, browser, tip_pattern, out_path=part_out, custom_css=custom_css)
                     part_paths.append(part_out)
             finally:
                 await browser.close()
@@ -299,18 +297,19 @@ def build_pdf(
         raise ValueError(f"변환할 마크다운 파일을 찾지 못했습니다: {root}")
 
     tip_pattern = tip_start_pattern(config.tip_markers if config else [])
+    custom_css = config.load_custom_css(root) if config else ""
     pdf_dir = out_dir or (root / "pdf")
 
     if merge_name is not None:
         out_path = pdf_dir / f"{merge_name}.pdf"
         print(f"\U0001f4c4 병합 대상: {len(chapters)}개 파일 → {out_path}")
-        ok = asyncio.run(_run_merged(chapters, out_path, tip_pattern))
+        ok = asyncio.run(_run_merged(chapters, out_path, tip_pattern, custom_css))
         if not ok:
             raise RuntimeError("PDF 병합 실패")
         return out_path
 
     print(f"\U0001f4c4 변환 대상: {len(chapters)}개 파일 → {pdf_dir}")
-    ok_n, fail_n = asyncio.run(_run_all(chapters, root, pdf_dir, tip_pattern))
+    ok_n, fail_n = asyncio.run(_run_all(chapters, root, pdf_dir, tip_pattern, custom_css))
     print(f"완료: {ok_n}개 성공 / {fail_n}개 실패")
     if fail_n:
         raise RuntimeError(f"{fail_n}개 챕터 PDF 변환 실패")

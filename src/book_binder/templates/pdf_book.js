@@ -21,6 +21,8 @@
     if (out !== src) el.textContent = out;
   });
 
+  try { await document.fonts.ready; } catch (e) { /* ignore */ }
+
   mermaid.initialize({
     startOnLoad: false,
     theme: 'default',

@@ -133,6 +133,8 @@ def build_html(
     title = title_override or (config.title if config else None) or root.name
 
     css = (_TEMPLATES_DIR / "html_book.css").read_text(encoding="utf-8")
+    if config and (custom_css := config.load_custom_css(root)):
+        css += f"\n\n/* ── custom_css (book.yaml) ── */\n{custom_css}"
     js = (_TEMPLATES_DIR / "html_book.js").read_text(encoding="utf-8")
     js = (
         js.replace("__PLACEHOLDER_HITS_FOUND__", locale["hits_found"])
