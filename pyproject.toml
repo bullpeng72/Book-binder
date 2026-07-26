@@ -36,7 +36,7 @@ target-version = "py311"
 "src/mdbook_binder/editor/server.py" = ["BLE001"]
 # Mermaid 렌더링 대기는 최선 노력(best-effort)이라 실패해도 조용히 다음 단계로
 # 진행해야 한다 — Playwright 타임아웃은 흔한 정상 경로다.
-"src/mdbook_binder/pdf_book.py" = ["BLE001", "S110", "ASYNC230"]
+"src/mdbook_binder/pdf_book.py" = ["BLE001", "S110", "S112", "ASYNC230"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
