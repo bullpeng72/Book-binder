@@ -40,3 +40,9 @@ target-version = "py311"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+# templates/ 하위 CSS/JS/편집기 SPA는 .py가 아니라 setuptools가 기본으로
+# 담지 않는다 — html_book.py/pdf_book.py가 런타임에 이 파일들을 직접 읽으므로
+# 반드시 wheel/sdist에 포함해야 한다.
+book_binder = ["templates/*", "templates/editor/*"]
