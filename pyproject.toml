@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "book-binder"
+version = "0.1.0"
+description = "임의의 마크다운 코퍼스를 검색 가능한 단일 HTML 도서와 PDF(단권/병합)로 변환하고, 결과 HTML을 편집하는 범용 애플리케이션"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Sungwoo Kim", email = "sungwoo.kim@gmail.com" }]
+dependencies = [
+    "markdown>=3.5",
+    "beautifulsoup4>=4.12",
+    "markdownify>=0.11",
+    "pyyaml>=6.0",
+    "click>=8.1",
+]
+
+[project.optional-dependencies]
+pdf = ["playwright>=1.40", "pypdf>=4.0"]
+editor = ["flask>=3.0", "pillow>=10.0"]
+dev = ["pytest>=8.0", "ruff>=0.4"]
+
+[project.scripts]
+book-binder = "book_binder.cli:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+# Flask API 핸들러는 어떤 예외든 JSON 에러 응답으로 바꿔 반환해야 하므로 광범위한
+# except Exception이 의도적이다(요청 하나의 실패가 서버 전체를 죽이면 안 됨).
+"src/book_binder/editor/server.py" = ["BLE001"]
+# Mermaid 렌더링 대기는 최선 노력(best-effort)이라 실패해도 조용히 다음 단계로
+# 진행해야 한다 — Playwright 타임아웃은 흔한 정상 경로다.
+"src/book_binder/pdf_book.py" = ["BLE001", "S110", "ASYNC230"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

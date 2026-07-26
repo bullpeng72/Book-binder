@@ -1,0 +1,127 @@
+/* ── PDF 레이아웃 오버라이드 (html_book.css 위에 얹는다) ── */
+#sidebar { display: none !important; }
+#main {
+  margin-left: 0 !important;
+  width: 100% !important;
+  padding: 0 24px 0 !important;
+}
+body {
+  display: block !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+table {
+  width: 100% !important;
+  table-layout: auto !important;
+  font-size: 8.5pt !important;
+  word-break: break-word !important;
+}
+th, td {
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  hyphens: auto;
+}
+.table-scale-wrap {
+  overflow: hidden;
+  width: 100%;
+}
+.table-scale-wrap table {
+  transform-origin: top left;
+}
+
+pre {
+  background: #282c34 !important;
+  color: #abb2bf !important;
+  border-radius: 8px !important;
+  padding: 14px 18px !important;
+  margin: 12px 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  overflow: visible !important;
+  max-width: 100% !important;
+  font-family: 'JetBrains Mono', 'Noto Sans Mono', monospace !important;
+  font-size: 8.5pt !important;
+  line-height: 1.65 !important;
+}
+pre code {
+  background: transparent !important;
+  color: inherit !important;
+  padding: 0 !important;
+  border: none !important;
+  font-size: inherit !important;
+  border-radius: 0 !important;
+}
+
+.hljs                            { background: #282c34 !important; color: #abb2bf !important; }
+.hljs-comment, .hljs-quote       { color: #7f848e !important; font-style: italic; }
+.hljs-keyword, .hljs-selector-tag,
+.hljs-addition                   { color: #c678dd !important; }
+.hljs-string, .hljs-meta .hljs-meta-string,
+.hljs-doctag, .hljs-regexp       { color: #98c379 !important; }
+.hljs-number, .hljs-literal      { color: #d19a66 !important; }
+.hljs-title, .hljs-section       { color: #61afef !important; }
+.hljs-class .hljs-title,
+.hljs-type                       { color: #e5c07b !important; }
+.hljs-attr, .hljs-variable,
+.hljs-template-variable          { color: #e06c75 !important; }
+.hljs-built_in, .hljs-deletion   { color: #56b6c2 !important; }
+
+:not(pre) > code {
+  background: #f0f2f5 !important;
+  color: #e45649 !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  font-size: 0.87em !important;
+  font-family: 'JetBrains Mono', 'Noto Sans Mono', monospace !important;
+  border: 1px solid #dde0e5 !important;
+}
+
+.mermaid {
+  text-align: center;
+  margin: 14px 0;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  overflow: visible;
+  break-before: avoid-page;
+  break-inside: auto;
+}
+.mermaid svg {
+  max-width: 100% !important;
+  display: block !important;
+  margin: 0 auto;
+}
+
+@media print {
+  body { height: auto !important; overflow: visible !important; }
+  img { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .mermaid-chunk { break-inside: avoid !important; page-break-inside: avoid !important; }
+  figure { break-inside: avoid !important; page-break-inside: avoid !important; }
+}
+
+img:not(.mermaid-chunk img) {
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  margin: 12px auto !important;
+}
+figure {
+  margin: 20px 0 !important;
+  text-align: center !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+figcaption {
+  font-size: 8.5pt !important;
+  color: #555 !important;
+  margin-top: 8px !important;
+  font-style: italic !important;
+  text-align: center !important;
+  line-height: 1.5 !important;
+}
