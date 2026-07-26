@@ -27,6 +27,12 @@ _PDF_CONTENT_W = 624
 _AVAIL_W = _PDF_CONTENT_W - 32
 _CHUNK_H = 300
 
+# Mermaid 스크린샷 캡처 및 최종 PDF 래스터화 해상도 배율.
+# 1이면 CSS px = 물리 px(96dpi 상당)로 캡처되어 인쇄/확대 시 다이어그램과
+# 이미지가 흐릿해진다. getBoundingClientRect() 등 레이아웃 계산은 항상 CSS px
+# 기준이라 clip 좌표·페이지 나눔 로직에는 영향 없이 캡처 해상도만 올라간다.
+_DEVICE_SCALE = 3
+
 
 def _rewrite_img_paths(html_str: str, base_dir: Path) -> str:
     """img src의 상대 경로를 file:// 절대 경로로 치환한다 (Playwright 로컬 렌더링용)."""
@@ -81,7 +87,7 @@ async def convert_one(chapter: ChapterFile, browser, tip_pattern, *, out_path: P
 
     temp_dir = Path(tempfile.mkdtemp(prefix="book_binder_pdf_"))
     try:
-        ctx1 = await browser.new_context(device_scale_factor=1)
+        ctx1 = await browser.new_context(device_scale_factor=_DEVICE_SCALE)
         render_page = await ctx1.new_page()
         await render_page.set_content(html, wait_until="networkidle")
         try:
@@ -174,7 +180,7 @@ async def convert_one(chapter: ChapterFile, browser, tip_pattern, *, out_path: P
         html_file = temp_dir / "chapter.html"
         html_file.write_text(p2_html, encoding="utf-8")
 
-        ctx2 = await browser.new_context(device_scale_factor=1)
+        ctx2 = await browser.new_context(device_scale_factor=_DEVICE_SCALE)
         page = await ctx2.new_page()
         await page.set_viewport_size({"width": _PDF_CONTENT_W, "height": 6000})
         await page.goto(f"file://{html_file}", wait_until="networkidle")
