@@ -12,10 +12,12 @@ from pathlib import Path
 
 import click
 
+from mdbook_binder import __version__
 from mdbook_binder.manifest import BookConfig
 
 
 @click.group()
+@click.version_option(__version__, prog_name="mdbook-binder")
 def main() -> None:
     """mdbook-binder — 마크다운 코퍼스를 HTML/PDF 도서로 변환한다."""
 
