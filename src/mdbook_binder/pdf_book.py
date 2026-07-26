@@ -18,8 +18,8 @@ import tempfile
 from html import escape as _html_escape
 from pathlib import Path
 
-from book_binder.manifest import BookConfig, ChapterFile
-from book_binder.render import md_to_html, tip_start_pattern
+from mdbook_binder.manifest import BookConfig, ChapterFile
+from mdbook_binder.render import md_to_html, tip_start_pattern
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -287,7 +287,7 @@ def build_pdf(
     manifest.resolve()의 3단계 우선순위를 html_book.build_html()과 동일하게
     공유한다.
     """
-    from book_binder.manifest import resolve
+    from mdbook_binder.manifest import resolve
 
     if config is None:
         config = BookConfig.load(root)

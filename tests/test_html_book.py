@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from book_binder.html_book import build_html
+from mdbook_binder.html_book import build_html
 
 
 def _write(root: Path, rel: str, content: str) -> Path:

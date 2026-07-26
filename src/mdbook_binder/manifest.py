@@ -10,7 +10,7 @@
     3. 위 전부 실패 시 디렉토리 트리 전체를 자연정렬(natural sort)해 전부 포함
        — "새 파일이 조용히 누락되는 일"을 없애는 최종 폴백
 
-이 우선순위는 book_binder 전체(HTML/PDF 빌드 공통)가 공유하는 계약이다.
+이 우선순위는 mdbook_binder 전체(HTML/PDF 빌드 공통)가 공유하는 계약이다.
 """
 
 from __future__ import annotations
@@ -112,7 +112,7 @@ class BookConfig:
         """book.yaml의 custom_css가 가리키는 파일을 읽는다.
 
         코퍼스별 raw-HTML 다이어그램(@@HTML_START@@ 블록)이 쓰는 커스텀
-        클래스는 book_binder의 범용 템플릿에 넣을 수 없다 — 코퍼스마다
+        클래스는 mdbook_binder의 범용 템플릿에 넣을 수 없다 — 코퍼스마다
         다이어그램 종류가 다르기 때문이다. 대신 각 코퍼스가 자기 CSS를
         선언하면 HTML/PDF 빌드 모두에 그대로 얹는다.
         """
@@ -326,7 +326,7 @@ TIER_NATURAL_SORT = "3순위: 자연정렬 전체 포함(폴백)"
 
 def resolve_verbose(root: Path, config: BookConfig | None) -> tuple[list[ChapterFile], str]:
     """resolve()와 동일한 3단계 우선순위를 따르되, 어느 단계가 순서를 확정했는지도
-    함께 반환한다 — `book-binder check`가 빌드 전에 "왜 이 순서로 잡혔는지"를
+    함께 반환한다 — `mdbook-binder check`가 빌드 전에 "왜 이 순서로 잡혔는지"를
     설명하는 데 쓴다.
     """
     if config and config.order:

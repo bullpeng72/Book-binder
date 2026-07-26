@@ -1,4 +1,4 @@
-# Book-binder
+# MDBook-binder
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -37,7 +37,7 @@
 엔진의 사본**이었다. 목차 정의는 책마다 손으로 유지하는 Python 리스트였고,
 이미지 임베드 방식·콜아웃 인식 규칙도 세 곳이 미묘하게 달랐다.
 
-Book-binder는 이 엔진을 한 곳으로 뽑아낸 **독립 애플리케이션**이다. 세 프로젝트
+MDBook-binder는 이 엔진을 한 곳으로 뽑아낸 **독립 애플리케이션**이다. 세 프로젝트
 중 어느 하나도 이 빌드 엔진을 소유하지 않고, 전부 이 패키지를 의존성으로
 참조한다. 목표는 세 가지였다.
 
@@ -91,17 +91,17 @@ flowchart TD
 ### 파일 구조
 
 ```
-Book_binder/
+MDBook-binder/
 ├── pyproject.toml
 ├── LICENSE
 ├── README.md
-├── src/book_binder/
+├── src/mdbook_binder/
 │   ├── manifest.py          # BookConfig(book.yaml) + resolve()/resolve_verbose()
 │   ├── render.py             # md_to_html / demote_headings / 콜아웃·로케일
 │   ├── html_book.py          # HTML 도서 빌더 (사이드바/검색/base64 이미지)
 │   ├── pdf_book.py           # PDF 빌더 (청크 캡처 + 개별/병합)
 │   ├── check.py              # 빌드 전 사전 점검
-│   ├── cli.py                # book-binder CLI (check/build html/build pdf/edit)
+│   ├── cli.py                # mdbook-binder CLI (check/build html/build pdf/edit)
 │   ├── editor/                # Lecture_forge 포크 — lecture-forge 비의존
 │   │   ├── html_editor.py      # BookHTMLEditor — 섹션 CRUD
 │   │   ├── image_editor.py     # 이미지/다이어그램 편집
@@ -122,13 +122,13 @@ Book_binder/
 
 ### 순서 해석 — 3단계 우선순위
 
-명령은 코퍼스가 무엇이든 동일하다(`book-binder build html <root>`) — 코퍼스가
+명령은 코퍼스가 무엇이든 동일하다(`mdbook-binder build html <root>`) — 코퍼스가
 이미 가진 정보(매니페스트/명명 규칙)에 따라 내부적으로 다른 우선순위가 자동
 선택된다.
 
 ```bash
 # book.yaml도, 매니페스트도, Part/Chapter 명명 규칙도 없는 새 폴더
-book-binder build html ~/Docs/my-notes
+mdbook-binder build html ~/Docs/my-notes
 # → 3순위(자연정렬)가 자동 적용, 최소한 파일이 빠지는 일은 없다
 ```
 
@@ -168,7 +168,7 @@ custom_css: custom.css       # 코퍼스 루트 기준 상대 경로 (선택)
 일을 줄인다.
 
 ```bash
-book-binder check ~/Docs/my-book
+mdbook-binder check ~/Docs/my-book
 ```
 
 ```
@@ -186,7 +186,7 @@ book-binder check ~/Docs/my-book
 ### HTML 도서 빌드
 
 ```bash
-book-binder build html <코퍼스_루트> [--out out.html] [--title ...] [--language ko|en]
+mdbook-binder build html <코퍼스_루트> [--out out.html] [--title ...] [--language ko|en]
 ```
 
 - 이미지를 base64 data URI로 인라인 임베드 — 이미지 폴더 없이도 단일 파일로
@@ -200,9 +200,9 @@ book-binder build html <코퍼스_루트> [--out out.html] [--title ...] [--lang
 ### PDF 빌드 — 개별/병합
 
 ```bash
-book-binder build pdf <코퍼스_루트>                        # 챕터별 개별 A4 PDF
-book-binder build pdf <코퍼스_루트> --merge [이름]          # 단권으로 병합
-book-binder build pdf <코퍼스_루트> --out-dir <디렉토리>    # 출력 위치 지정
+mdbook-binder build pdf <코퍼스_루트>                        # 챕터별 개별 A4 PDF
+mdbook-binder build pdf <코퍼스_루트> --merge [이름]          # 단권으로 병합
+mdbook-binder build pdf <코퍼스_루트> --out-dir <디렉토리>    # 출력 위치 지정
 ```
 
 각 챕터를 Playwright/Chromium으로 독립 렌더링한다. 긴 Mermaid 다이어그램은
@@ -214,7 +214,7 @@ book-binder build pdf <코퍼스_루트> --out-dir <디렉토리>    # 출력 �
 ### HTML 편집
 
 ```bash
-book-binder edit <html_경로> [--port 5757] [--out edited.html] [--no-browser]
+mdbook-binder edit <html_경로> [--port 5757] [--out edited.html] [--no-browser]
 ```
 
 브라우저에서 섹션 단위로 마크다운 편집(EasyMDE), 이미지/다이어그램 목록·삭제·
@@ -225,7 +225,7 @@ book-binder edit <html_경로> [--port 5757] [--out edited.html] [--no-browser]
 
 ## 3. 설치 가이드
 
-Book-binder는 아직 PyPI에 배포되지 않았다 — 저장소를 직접 받아 설치한다.
+MDBook-binder는 아직 PyPI에 배포되지 않았다 — 저장소를 직접 받아 설치한다.
 
 ### 사전 준비
 
@@ -249,8 +249,8 @@ Book-binder는 아직 PyPI에 배포되지 않았다 — 저장소를 직접 받
 ### 설치
 
 ```bash
-git clone git@github.com:bullpeng72/book-binder.git
-cd book-binder
+git clone https://github.com/bullpeng72/MDBook-binder.git
+cd MDBook-binder
 python3 -m venv .venv && source .venv/bin/activate
 
 pip install -e .                    # 코어만 — HTML 빌드/check/편집(수동 조합)
@@ -265,10 +265,10 @@ python -m playwright install --with-deps chromium   # [pdf] 설치 시 1회
 ### 빠른 시작
 
 ```bash
-book-binder check ~/Docs/my-book                 # 1. 빌드 전 사전 점검
-book-binder build html ~/Docs/my-book --out out.html   # 2. HTML 도서 빌드
-book-binder edit out.html                        # 3. 브라우저에서 편집
-book-binder build pdf ~/Docs/my-book --merge      # 4. (선택) 단권 PDF
+mdbook-binder check ~/Docs/my-book                 # 1. 빌드 전 사전 점검
+mdbook-binder build html ~/Docs/my-book --out out.html   # 2. HTML 도서 빌드
+mdbook-binder edit out.html                        # 3. 브라우저에서 편집
+mdbook-binder build pdf ~/Docs/my-book --merge      # 4. (선택) 단권 PDF
 ```
 
 ### 개발

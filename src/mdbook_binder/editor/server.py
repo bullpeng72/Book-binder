@@ -1,8 +1,8 @@
-"""Book-binder 웹 편집기 — Flask API 서버.
+"""MDBook-binder 웹 편집기 — Flask API 서버.
 
 Lecture_forge의 `editor/server.py`를 lecture-forge 비의존으로 포크한 것이다.
 전역 `Config.DATA_DIR`/`Config.OUTPUT_DIR`(모든 강의 세션 공용 디렉토리) 대신
-편집 중인 HTML 파일 기준 상대 경로만 사용한다 — book-binder에는 그런 전역
+편집 중인 HTML 파일 기준 상대 경로만 사용한다 — mdbook-binder에는 그런 전역
 데이터 디렉토리 개념이 없기 때문이다.
 """
 
@@ -18,10 +18,10 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_file
 
-from book_binder.editor.html_editor import BookHTMLEditor
-from book_binder.editor.image_editor import ImageEditor
+from mdbook_binder.editor.html_editor import BookHTMLEditor
+from mdbook_binder.editor.image_editor import ImageEditor
 
-logger = logging.getLogger("book_binder.editor")
+logger = logging.getLogger("mdbook_binder.editor")
 
 _ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 _TEMPLATE_DIR = Path(__file__).parent.parent / "templates" / "editor"

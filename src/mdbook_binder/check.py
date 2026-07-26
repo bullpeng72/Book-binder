@@ -1,4 +1,4 @@
-"""빌드 전 사전 점검 — `book-binder check`.
+"""빌드 전 사전 점검 — `mdbook-binder check`.
 
 Media/Book을 실제로 변환하며 두 가지를 빌드가 다 끝난 뒤에야(HTML을 열어 섹션
 수를 세어보고 나서야) 발견했다: (1) IMAGES.md 같은 집필 가이드 문서가 챕터로
@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from book_binder.manifest import BookConfig, ChapterFile, resolve_verbose
+from mdbook_binder.manifest import BookConfig, ChapterFile, resolve_verbose
 
 _H1_RE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 _IMG_SRC_RE = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")

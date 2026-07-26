@@ -18,8 +18,8 @@ import unicodedata
 from html import escape as _html_escape
 from pathlib import Path
 
-from book_binder.manifest import LOCALE_STRINGS, BookConfig, resolve
-from book_binder.render import demote_headings, extract_h1_text, md_to_html, tip_start_pattern
+from mdbook_binder.manifest import LOCALE_STRINGS, BookConfig, resolve
+from mdbook_binder.render import demote_headings, extract_h1_text, md_to_html, tip_start_pattern
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 

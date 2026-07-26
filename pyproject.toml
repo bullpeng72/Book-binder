@@ -3,7 +3,7 @@ requires = ["setuptools>=65.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "book-binder"
+name = "mdbook-binder"
 version = "0.1.0"
 description = "임의의 마크다운 코퍼스를 검색 가능한 단일 HTML 도서와 PDF(단권/병합)로 변환하고, 결과 HTML을 편집하는 범용 애플리케이션"
 readme = "README.md"
@@ -24,7 +24,7 @@ editor = ["flask>=3.0", "pillow>=10.0"]
 dev = ["pytest>=8.0", "ruff>=0.4"]
 
 [project.scripts]
-book-binder = "book_binder.cli:main"
+mdbook-binder = "mdbook_binder.cli:main"
 
 [tool.ruff]
 line-length = 100
@@ -33,10 +33,10 @@ target-version = "py311"
 [tool.ruff.lint.per-file-ignores]
 # Flask API 핸들러는 어떤 예외든 JSON 에러 응답으로 바꿔 반환해야 하므로 광범위한
 # except Exception이 의도적이다(요청 하나의 실패가 서버 전체를 죽이면 안 됨).
-"src/book_binder/editor/server.py" = ["BLE001"]
+"src/mdbook_binder/editor/server.py" = ["BLE001"]
 # Mermaid 렌더링 대기는 최선 노력(best-effort)이라 실패해도 조용히 다음 단계로
 # 진행해야 한다 — Playwright 타임아웃은 흔한 정상 경로다.
-"src/book_binder/pdf_book.py" = ["BLE001", "S110", "ASYNC230"]
+"src/mdbook_binder/pdf_book.py" = ["BLE001", "S110", "ASYNC230"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -45,4 +45,4 @@ where = ["src"]
 # templates/ 하위 CSS/JS/편집기 SPA는 .py가 아니라 setuptools가 기본으로
 # 담지 않는다 — html_book.py/pdf_book.py가 런타임에 이 파일들을 직접 읽으므로
 # 반드시 wheel/sdist에 포함해야 한다.
-book_binder = ["templates/*", "templates/editor/*"]
+mdbook_binder = ["templates/*", "templates/editor/*"]

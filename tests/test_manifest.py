@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from book_binder.manifest import BookConfig, OrderConfig, resolve
+from mdbook_binder.manifest import BookConfig, OrderConfig, resolve
 
 
 def _write(root: Path, rel: str, content: str = "# Title\n\nbody\n") -> Path:

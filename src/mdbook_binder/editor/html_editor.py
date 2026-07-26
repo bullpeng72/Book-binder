@@ -16,7 +16,7 @@ import markdown
 from bs4 import BeautifulSoup, Tag
 from markdownify import markdownify
 
-logger = logging.getLogger("book_binder.editor")
+logger = logging.getLogger("mdbook_binder.editor")
 
 
 class BookHTMLEditor:

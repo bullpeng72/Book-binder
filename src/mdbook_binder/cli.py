@@ -1,9 +1,9 @@
-"""book-binder CLI.
+"""mdbook-binder CLI.
 
-    book-binder check      <root>                                     빌드 전 사전 점검
-    book-binder build html <root> [--out FILE] [--title TITLE] [--language ko|en]
-    book-binder build pdf  <root> [--merge [이름]] [--out-dir ...]
-    book-binder edit       <html>  [--port 5757] [--out ...] [--no-browser]
+    mdbook-binder check      <root>                                     빌드 전 사전 점검
+    mdbook-binder build html <root> [--out FILE] [--title TITLE] [--language ko|en]
+    mdbook-binder build pdf  <root> [--merge [이름]] [--out-dir ...]
+    mdbook-binder edit       <html>  [--port 5757] [--out ...] [--no-browser]
 """
 
 from __future__ import annotations
@@ -12,12 +12,12 @@ from pathlib import Path
 
 import click
 
-from book_binder.manifest import BookConfig
+from mdbook_binder.manifest import BookConfig
 
 
 @click.group()
 def main() -> None:
-    """book-binder — 마크다운 코퍼스를 HTML/PDF 도서로 변환한다."""
+    """mdbook-binder — 마크다운 코퍼스를 HTML/PDF 도서로 변환한다."""
 
 
 @main.command("check")
@@ -29,7 +29,7 @@ def check_cmd(root: Path) -> None:
     있는지를 원본 마크다운만 훑어 빠르게 보여준다 — 챕터로 잘못 분류된
     문서(예: 집필 가이드 .md)를 빌드 후에야 발견하는 일을 줄이기 위함이다.
     """
-    from book_binder.check import check_corpus, format_report
+    from mdbook_binder.check import check_corpus, format_report
 
     result = check_corpus(root)
     print(format_report(root, result))
@@ -52,7 +52,7 @@ def build_html_cmd(
     language_override: str | None,
 ) -> None:
     """ROOT 아래 마크다운 코퍼스를 검색 가능한 단일 HTML 도서로 빌드한다."""
-    from book_binder.html_book import build_html
+    from mdbook_binder.html_book import build_html
 
     print(f"\U0001f4da Building HTML book from {root} ...")
     config = BookConfig.load(root)
@@ -73,7 +73,7 @@ def build_html_cmd(
               help="PDF 출력 디렉토리 (기본: ROOT/pdf)")
 def build_pdf_cmd(root: Path, merge_out: str | None, out_dir: Path | None) -> None:
     """ROOT 아래 마크다운을 챕터별 PDF(또는 --merge 시 단권)로 빌드한다."""
-    from book_binder.pdf_book import build_pdf
+    from mdbook_binder.pdf_book import build_pdf
 
     print(f"\U0001f4da Building PDF from {root} ...")
     try:
@@ -89,7 +89,7 @@ def build_pdf_cmd(root: Path, merge_out: str | None, out_dir: Path | None) -> No
 @click.option("--no-browser", is_flag=True, default=False, help="브라우저 자동 오픈 비활성화")
 def edit_cmd(html_path: Path, port: int, out_path: Path | None, no_browser: bool) -> None:
     """HTML_PATH를 브라우저 편집 UI로 연다."""
-    from book_binder.editor.server import run_editor
+    from mdbook_binder.editor.server import run_editor
 
     run_editor(
         str(html_path),

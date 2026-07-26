@@ -14,7 +14,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
-logger = logging.getLogger("book_binder.editor")
+logger = logging.getLogger("mdbook_binder.editor")
 
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
@@ -191,7 +191,7 @@ class ImageEditor:
         """HTML 파일 인근 디렉토리에서 대체 이미지를 찾는다.
 
         Lecture_forge 원본은 전역 Config.DATA_DIR(모든 강의 세션 공용 이미지
-        저장소)까지 뒤졌지만, book-binder에는 그런 전역 데이터 디렉토리 개념이
+        저장소)까지 뒤졌지만, mdbook-binder에는 그런 전역 데이터 디렉토리 개념이
         없다 — 편집 중인 HTML 파일 인근(같은 디렉토리, images/ 하위)만 검색한다.
         """
         possible_bases = [

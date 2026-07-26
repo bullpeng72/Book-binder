@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from book_binder.check import check_corpus
-from book_binder.manifest import TIER_NATURAL_SORT, TIER_PART_CONVENTION
+from mdbook_binder.check import check_corpus
+from mdbook_binder.manifest import TIER_NATURAL_SORT, TIER_PART_CONVENTION
 
 
 def _write(root: Path, rel: str, content: str) -> Path:
