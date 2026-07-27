@@ -18,7 +18,7 @@ from pathlib import Path
 
 from mdbook_binder.imgembed import image_to_data_uri
 from mdbook_binder.manifest import LOCALE_STRINGS, BookConfig, resolve
-from mdbook_binder.mermaid_prerender import prerender_mermaid
+from mdbook_binder.mermaid_prerender import mermaid_font_face_css, mermaid_label_css, prerender_mermaid
 from mdbook_binder.render import demote_headings, extract_h1_text, md_to_html, tip_start_pattern
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -138,6 +138,12 @@ def build_html(
     )
 
     body_html, needs_mermaid_cdn = prerender_mermaid("\n".join(sections))
+    # 사전 렌더링된 다이어그램이 있을 때만 폰트를 심는다 — 다이어그램이 없는
+    # 책까지 base64 폰트(약 2MB)로 무겁게 만들 이유가 없다.
+    has_prerendered_diagrams = 'data-prerendered="true"' in body_html
+    mermaid_font_css = (
+        f"{mermaid_font_face_css()}\n{mermaid_label_css()}" if has_prerendered_diagrams else ""
+    )
 
     html = _render_shell(
         title=title,
@@ -150,6 +156,7 @@ def build_html(
         prev_title=locale["prev_title"],
         next_title=locale["next_title"],
         needs_mermaid_cdn=needs_mermaid_cdn,
+        mermaid_font_css=mermaid_font_css,
     )
 
     out = out_path or (root / f"{_slugify(title)}.html")
@@ -181,6 +188,7 @@ def _render_shell(
     prev_title: str,
     next_title: str,
     needs_mermaid_cdn: bool,
+    mermaid_font_css: str = "",
 ) -> str:
     # 다이어그램이 전부(또는 애초에 하나도 없어) 사전 렌더링됐다면 CDN mermaid.js
     # 자체가 필요 없다 — 열람 시 불필요한 외부 요청을 만들지 않도록 태그를 생략한다.
@@ -200,6 +208,7 @@ def _render_shell(
 {mermaid_script_tag}<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <style>
+{mermaid_font_css}
 {css}
 </style>
 </head>

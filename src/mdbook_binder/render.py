@@ -13,6 +13,8 @@ from html import escape as _html_escape
 
 import markdown as md_lib
 
+from mdbook_binder.mermaid_wrap import auto_wrap_long_labels
+
 
 def tip_start_pattern(markers: list[str]) -> re.Pattern:
     """콜아웃(TIP박스) 시작 마커 패턴을 만든다.
@@ -37,7 +39,7 @@ def md_to_html(text: str, tip_pattern: re.Pattern) -> str:
     text = re.sub(r"@@HTML_START@@\s*\n(.*?)@@HTML_END@@", extract_html_block, text, flags=re.DOTALL)
 
     def extract_mermaid(m: re.Match) -> str:
-        saved_blocks.append(("mermaid", m.group(1)))
+        saved_blocks.append(("mermaid", auto_wrap_long_labels(m.group(1))))
         return f"@@BLOCK_{len(saved_blocks) - 1}@@"
 
     text = re.sub(r"```mermaid\s*\n(.*?)```", extract_mermaid, text, flags=re.DOTALL)

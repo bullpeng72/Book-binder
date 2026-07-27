@@ -12,6 +12,43 @@ body {
   width: 100% !important;
 }
 
+/* html_book.css의 폰트 크기는 뷰포트 폭이 넓은 화면(브라우저) 기준이다.
+   pdf_book.py는 뷰포트를 PDF 본문 폭(624px)으로 고정해 렌더링하므로, 화면용
+   크기(16px 루트 · 2.2rem 제목 등)를 그대로 쓰면 인쇄 결과물에서 제목·본문이
+   과도하게 커 보인다. 인쇄물 비율에 맞춰 축소한다. */
+html { font-size: 10.5pt !important; }
+body { line-height: 1.65 !important; }
+
+h1 { font-size: 19pt !important; margin: 22px 0 12px !important; padding-bottom: 8px !important; }
+h2 { font-size: 15pt !important; margin: 20px 0 10px !important; padding-bottom: 5px !important; }
+h3 { font-size: 12.5pt !important; margin: 16px 0 8px !important; }
+h4 { font-size: 11pt !important; margin: 12px 0 6px !important; }
+h5, h6 { font-size: 10pt !important; margin: 10px 0 5px !important; }
+
+p, li { font-size: 10pt !important; }
+
+/* 페이지 넘김 시 제목이 페이지 하단에 홀로 남고 본문이 다음 페이지로
+   밀려나거나, 문단/목록/인용구가 페이지 경계 중간에서 잘리는 문제 방지.
+   이미지·mermaid·figure는 위(아래)에서 이미 break-inside: avoid로 보호되고
+   있으나, 일반 텍스트 요소에는 그런 보호가 없었다. */
+h1, h2, h3, h4, h5, h6 {
+  break-inside: avoid-page !important;
+  break-after: avoid-page !important;
+}
+p, li, blockquote, .tip-box {
+  orphans: 3;
+  widows: 3;
+}
+blockquote, .tip-box {
+  break-inside: avoid-page !important;
+}
+tr, thead {
+  break-inside: avoid-page !important;
+}
+thead {
+  display: table-header-group;
+}
+
 table {
   width: 100% !important;
   table-layout: auto !important;

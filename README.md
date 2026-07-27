@@ -104,6 +104,7 @@ MDBook-binder/
 │   ├── html_book.py          # HTML 도서 빌더 (사이드바/검색/base64 이미지)
 │   ├── imgembed.py           # 이미지 → base64 data URI 인코딩 공용 유틸
 │   ├── mermaid_prerender.py  # Mermaid 빌드 타임 정적 SVG 사전 렌더링 (Playwright)
+│   ├── mermaid_wrap.py       # Mermaid 노드/엣지 라벨 자동 줄바꿈
 │   ├── pdf_book.py           # PDF 빌더 (청크 캡처 + 개별/병합)
 │   ├── check.py              # 빌드 전 사전 점검
 │   ├── cli.py                # mdbook-binder CLI (check/build html/build pdf/edit)
@@ -115,14 +116,15 @@ MDBook-binder/
 │       ├── html_book.css/js    # HTML 도서 사이드바·검색·mermaid
 │       ├── pdf_override.css    # PDF 전용 레이아웃 오버라이드(CSS)
 │       ├── pdf_book.js         # PDF 렌더링 보정(Mermaid 크기 측정·청크 분할)
-│       ├── vendor/              # 번들된 mermaid.min.js (오프라인 빌드타임 렌더링용)
+│       ├── vendor/              # 번들된 mermaid.min.js + Noto Sans KR 폰트(오프라인 렌더링용)
 │       └── editor/              # 편집 SPA (index.html/editor.css/editor.js)
 └── tests/
     ├── test_manifest.py          # 3단계 순서 해석 (5건)
     ├── test_html_book.py         # 섹션 id 충돌 회피·이미지 임베드 (3건)
     ├── test_check.py             # 사전 점검 (4건)
     ├── test_editor.py            # 이미지 추가/교체 후 base64 임베드 (2건)
-    └── test_mermaid_prerender.py # Mermaid 사전 렌더링 성공/폴백 (3건)
+    ├── test_mermaid_prerender.py # Mermaid 사전 렌더링 성공/폴백 (3건)
+    └── test_mermaid_wrap.py      # 라벨 자동 줄바꿈 (7건)
 ```
 
 ---
@@ -394,7 +396,7 @@ mdbook-binder build pdf ~/Docs/my-book --merge      # 4. (선택) 단권 PDF
 
 ```bash
 pip install -e ".[dev,pdf,editor]"
-pytest tests/ -q      # 17개 테스트 (manifest 5 + html_book 3 + check 4 + editor 2 + mermaid_prerender 3)
+pytest tests/ -q      # 24개 테스트 (manifest 5 + html_book 3 + check 4 + editor 2 + mermaid_prerender 3 + mermaid_wrap 7)
 ruff check src tests
 ```
 
@@ -413,9 +415,11 @@ ruff check src tests
   CDN 스크립트가 로드에 실패해도 검색·목차 활성화 등 나머지 기능은 죽지
   않도록 방어적으로 처리돼 있다.
 - **Mermaid 오프라인 사전 렌더링 대가로 패키지 용량이 커졌다**: 빌드 자체도
-  네트워크 없이 동작하도록 `templates/vendor/mermaid.min.js`(약 3.3MB)를
-  패키지에 번들했다 — 생성되는 각 HTML 도서 파일 크기와는 무관하고, `pip
-  install mdbook-binder` 1회 설치 용량에만 영향을 준다.
+  네트워크 없이 동작하도록 `templates/vendor/mermaid.min.js`(약 3.3MB)와,
+  다이어그램 안 한글 라벨이 어떤 환경에서 빌드/열람되든 동일하게 렌더링되게
+  하는 `NotoSansKR-Regular.woff2`(약 2.1MB)를 패키지에 번들했다(합계 약
+  5.4MB) — 생성되는 각 HTML 도서 파일 크기와는 무관하고, `pip install
+  mdbook-binder` 1회 설치 용량에만 영향을 준다.
 - **병합 PDF(`--merge`)에는 챕터별 북마크(아웃라인)가 없다**: `pypdf`로 개별
   챕터 PDF를 순서대로 이어붙이기만 하고(`PdfWriter.append()`에 `outline_item`을
   넘기지 않음) 원본 챕터 PDF 자체에도 아웃라인이 없으므로, 병합본을 PDF
@@ -443,6 +447,35 @@ ruff check src tests
 ---
 
 ## 변경이력
+
+### Unreleased
+
+- **feat**: Mermaid 노드/엣지 라벨 중 긴 텍스트를 자동 줄바꿈(`mermaid_wrap.py`,
+  신규 모듈). 다이아몬드(결정) 노드는 라벨 폭만큼 도형이 커지는데, 긴 한글
+  라벨 한 줄이 다이아몬드의 뾰족한 모서리 밖으로 삐져나오던 문제를 막는다.
+  `md_to_html()`이 mermaid 코드 블록을 추출하는 시점에 한 번만 적용해, HTML
+  사전 렌더링과 PDF 변환(클라이언트 mermaid.js) 두 경로 모두 동일하게
+  줄바꿈된 결과를 쓴다.
+- **fix**: HTML 도서 열람 시 다이어그램 안 한글 라벨이 두 번째 줄부터 잘려
+  보이던 문제 수정. 원인은 두 겹이었다 — ① `body { line-height: 1.8 }`가
+  Mermaid SVG의 `<foreignObject>` 라벨 텍스트까지 상속돼 실제 렌더링 높이가
+  Mermaid가 계산해 둔 도형 크기보다 커졌고, ② Noto Sans KR처럼 세로 메트릭이
+  큰 폰트에서는 `line-height: normal`이어도 Mermaid의 자체 높이 측정치와
+  실제 브라우저 렌더링 높이가 20~30% 어긋났다. 라벨 텍스트의 `line-height`를
+  고정 숫자값(1.2)으로 못박아 빌드 시점 측정과 표시 시점 렌더링을 일치시키고,
+  `foreignObject`에 `overflow: visible`을 둬 그래도 남는 서브픽셀 오차가
+  텍스트를 자르지 않고 살짝 넘치는 선에서 그치게 함(`mermaid_prerender.py`의
+  신규 `mermaid_label_css()`를 빌드용 렌더 페이지·최종 HTML·PDF 렌더 페이지
+  세 곳에 동일하게 주입).
+- **fix**: PDF 변환 시 페이지 넘김 지점이 다이어그램 도형(다이아몬드/박스)
+  한가운데를 가로질러 잘려 보이던 문제 수정. 청크 분할 시 "안전한(도형이
+  없는) 절단 지점"을 찾을 때 화살표/연결선(`<path>`)까지 "점유된 구간"에
+  포함시킨 게 원인이었다 — 연결선은 정의상 노드 사이 여백 전체를 잇는
+  선이라, 촘촘히 연결된 플로우차트에서는 이를 포함하는 순간 진짜 빈 공간이
+  거의 사라져 탐색이 실패하고 도형 내부의 좌표를 그대로 절단 지점으로
+  반환하게 됐다. 절단 지점 탐색 대상에서 `path`를 제외해 연결선 중간에서만
+  끊기도록 수정(`pdf_book.py`) — 화살표가 페이지 경계에서 끊기는 건 시각적으로
+  자연스럽다.
 
 ### 0.3.0 (2026-07-27)
 

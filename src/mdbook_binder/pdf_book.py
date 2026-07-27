@@ -18,6 +18,7 @@ from html import escape as _html_escape
 from pathlib import Path
 
 from mdbook_binder.manifest import BookConfig, ChapterFile
+from mdbook_binder.mermaid_prerender import mermaid_font_face_css, mermaid_label_css
 from mdbook_binder.render import md_to_html, tip_start_pattern
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -132,6 +133,11 @@ def _build_pdf_page_html(body_html: str, title: str, custom_css: str = "") -> st
     css = (_TEMPLATES_DIR / "html_book.css").read_text(encoding="utf-8")
     pdf_css = (_TEMPLATES_DIR / "pdf_override.css").read_text(encoding="utf-8")
     js = (_TEMPLATES_DIR / "pdf_book.js").read_text(encoding="utf-8")
+    # Google Fonts CDN이 원래 폰트 출처지만, 빌드 머신이 오프라인이면 조용히
+    # 실패해 시스템 폰트로 대체된다. 번들된 Noto Sans KR을 같은 이름의
+    # @font-face로 같이 심어 두면 CDN이 막혀도 mermaid 다이어그램만은 항상
+    # 동일한 폰트로 렌더링된다(mermaid_prerender.py의 HTML 경로와 동일 폰트).
+    font_css = f"{mermaid_font_face_css()}\n{mermaid_label_css()}"
     return f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -143,6 +149,7 @@ def _build_pdf_page_html(body_html: str, title: str, custom_css: str = "") -> st
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
+{font_css}
 {css}
 {pdf_css}
 {custom_css}
@@ -211,8 +218,15 @@ async def convert_one(
                     const b = svg.getBoundingClientRect();
                     // 도형/텍스트가 차지하는 y구간을 모아, 청크 경계가 그 한가운데를
                     // 가로지르지 않도록 한다 (박스/라벨이 반토막나는 것을 방지).
+                    // path(화살표/연결선)는 제외한다 — 연결선은 정의상 노드와 노드
+                    // 사이 여백 전체를 잇는 선이라, 이를 포함하면 촘촘히 연결된
+                    // 플로우차트에서 "비어 있는" 구간이 사실상 사라져 버려 안전한
+                    // 절단 지점을 못 찾고(_nearest_safe_y가 탐색창 전체가 점유된
+                    // 것으로 보고 target을 그대로 반환) 결국 다이아몬드/박스 한가운데를
+                    // 그대로 잘라버리는 결과로 이어진다. 화살표 선 중간이 페이지
+                    // 경계에서 끊기는 건 시각적으로 자연스럽다.
                     const bands = [];
-                    svg.querySelectorAll('rect, polygon, circle, ellipse, text, path, image').forEach(el => {{
+                    svg.querySelectorAll('rect, polygon, circle, ellipse, text, image').forEach(el => {{
                         const er = el.getBoundingClientRect();
                         if (er.width <= 0 || er.height <= 0) return;
                         const y0 = er.top - b.y;
