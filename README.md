@@ -111,7 +111,8 @@ MDBook-binder/
 │   │   └── server.py           # Flask 편집 API 서버
 │   └── templates/
 │       ├── html_book.css/js    # HTML 도서 사이드바·검색·mermaid
-│       ├── pdf_override.css/js # PDF 전용 레이아웃 오버라이드
+│       ├── pdf_override.css    # PDF 전용 레이아웃 오버라이드(CSS)
+│       ├── pdf_book.js         # PDF 렌더링 보정(Mermaid 크기 측정·청크 분할)
 │       └── editor/              # 편집 SPA (index.html/editor.css/editor.js)
 └── tests/
     ├── test_manifest.py       # 3단계 순서 해석 (5건)
@@ -328,6 +329,17 @@ ruff check src tests
 
 ## 알려진 한계
 
+- **HTML 도서는 이미지만 오프라인이고 나머지는 CDN 의존적이다**: 이미지는
+  base64로 인라인 임베드되지만, Mermaid 렌더링(`mermaid@10`)·코드 하이라이트
+  (`highlight.js`)·본문 웹폰트(Google Fonts)는 `<script>`/`<link>` 태그로
+  매번 CDN에서 불러온다 — 완전히 오프라인인 환경(인터넷 차단 사내망 등)에서
+  열면 다이어그램이 원본 mermaid 텍스트 그대로 보이고 코드 하이라이트·폰트도
+  브라우저 기본값으로 대체된다.
+- **병합 PDF(`--merge`)에는 챕터별 북마크(아웃라인)가 없다**: `pypdf`로 개별
+  챕터 PDF를 순서대로 이어붙이기만 하고(`PdfWriter.append()`에 `outline_item`을
+  넘기지 않음) 원본 챕터 PDF 자체에도 아웃라인이 없으므로, 병합본을 PDF
+  뷰어로 열어도 사이드바 목차(챕터 점프)가 생성되지 않는다 — 목차는 도서
+  본문에 렌더된 페이지로만 확인 가능하다.
 - **PDF/HTML 부분 빌드 미지원**: 원본 `build_pdf_chapters.py`가 갖고 있던
   "파일/패턴 지정 부분 변환"은 아직 이식하지 않았다 — 항상 코퍼스 전체를
   대상으로 빌드한다.
