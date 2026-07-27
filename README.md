@@ -1,5 +1,6 @@
 # MDBook-binder
 
+[![PyPI](https://img.shields.io/pypi/v/mdbook-binder)](https://pypi.org/project/mdbook-binder/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 **임의의 마크다운 코퍼스를 검색 가능한 단일 HTML 도서와 PDF(단권/병합)로 변환하고,
@@ -18,6 +19,7 @@
   - [순서 해석 — 3단계 우선순위](#순서-해석--3단계-우선순위)
   - [book.yaml 설정](#bookyaml-설정)
   - [마크다운 저작 규칙](#마크다운-저작-규칙)
+  - [AI로 챕터 저작하기 — Skill/프롬프트 활용](#ai로-챕터-저작하기--skill프롬프트-활용)
   - [빌드 전 사전 점검 — check](#빌드-전-사전-점검--check)
   - [HTML 도서 빌드](#html-도서-빌드)
   - [PDF 빌드 — 개별/병합](#pdf-빌드--개별병합)
@@ -36,9 +38,10 @@
 MDBook-binder는 **임의의 마크다운 파일 모음(코퍼스)을 입력으로 받아, 코드
 수정 없이 다음 세 가지를 만들어내는 독립 실행형 CLI 애플리케이션**이다.
 
-1. **검색 가능한 단일 HTML 도서** — 사이드바 목차, 인페이지 전문 검색,
-   Mermaid 다이어그램 렌더링을 갖추고, 이미지·다이어그램은 base64로 인라인
-   임베드되어 파일 하나만으로 완전히 독립적으로 열린다.
+1. **검색 가능한 단일 HTML 도서** — 사이드바 목차, 인페이지 전문 검색을
+   갖추고, 이미지는 base64로 인라인 임베드되어 파일 하나만으로 열린다.
+   Mermaid 다이어그램은 열람 시점에 CDN의 `mermaid.js`가 렌더링한다(오프라인
+   제약은 [알려진 한계](#알려진-한계) 참고).
 2. **PDF 도서** — 챕터별 개별 PDF 또는 한 권으로 병합(merge)한 PDF.
 3. **HTML 도서 편집기** — 생성된 HTML 도서를 브라우저에서 섹션 단위로 다시
    열어 마크다운·이미지를 편집할 수 있는 웹 편집기.
@@ -205,6 +208,57 @@ custom_css: custom.css       # 코퍼스 루트 기준 상대 경로 (선택)
   생성되며, 서로 다른 챕터의 제목이 같아도 `-2`/`-3` 접미사로 충돌을
   자동 회피한다.
 
+### AI로 챕터 저작하기 — Skill/프롬프트 활용
+
+챕터 초안을 AI에게 맡기면 위 [마크다운 저작 규칙](#마크다운-저작-규칙)을 모르는
+채로 써서 `check`/빌드 시점에야 문제가 드러나기 쉽다 — 규칙 자체는 이 README를
+정본(single source of truth)으로 유지하고, 사용하는 AI 도구에 맞는 방식으로
+그 정본을 참조하게 만드는 두 가지 방법을 쓸 수 있다.
+
+**Claude Code — 얇은 래퍼 Skill.** 규칙을 다시 옮겨 적지 않고 이 절을
+가리키기만 하는 스킬을 저장소에 두면, 규칙이 바뀔 때 README 한 곳만 고치면
+된다.
+
+```markdown
+<!-- .claude/skills/mdbook-authoring/SKILL.md -->
+---
+name: mdbook-authoring
+description: mdbook-binder 코퍼스에 마크다운 챕터를 추가/수정할 때 저작
+  규칙(H1 제목, 이미지 상대 경로, Mermaid 펜스, 콜아웃 마커, Part/Chapter
+  명명 규칙 등)을 적용한다. "챕터 써줘", "이 코퍼스에 새 문서 추가해줘" 등의
+  요청에 사용.
+---
+
+이 저장소는 mdbook-binder로 빌드되는 마크다운 코퍼스다. 챕터를 새로 쓰거나
+수정하기 전에 README.md의 "마크다운 저작 규칙" 절
+(#마크다운-저작-규칙)을 읽고 그대로 따른다 — 규칙 원문은 그 절에만 있으므로
+여기서 다시 옮겨 적지 않는다. 작성 후에는 `mdbook-binder check <root>`로
+검증한다.
+```
+
+**다른 AI 도구(ChatGPT/Cursor 등) — 범용 프롬프트 블록.** Claude Code의
+스킬 자동 트리거 없이도 붙여넣기만 하면 되도록, 규칙을 요약한 프롬프트를
+그대로 시스템/커스텀 프롬프트에 넣는다.
+
+```text
+당신은 mdbook-binder로 빌드될 마크다운 챕터를 작성합니다. 다음 규칙을 반드시
+지키세요.
+1. 파일은 H1(`# 제목`) 하나로 시작한다. 하위 제목은 H2 이하로 쓴다.
+2. 이미지 경로는 해당 마크다운 파일 기준 상대 경로로 쓴다.
+3. Mermaid 다이어그램은 `mermaid` 코드 펜스 블록으로 작성한다.
+4. 콜아웃(TIP박스)은 book.yaml의 callouts.tip_markers에 등록된 이모지로
+   blockquote를 시작한다. 등록되지 않은 이모지는 일반 인용문으로 렌더된다.
+5. 커스텀 raw HTML은 @@HTML_START@@ / @@HTML_END@@ 블록으로 감싼다.
+6. 순서 자동 인식을 받으려면 Part_<로마숫자>_.../Chapter_<NN>_... 명명
+   규칙을 따르거나, book.yaml의 order.files로 순서를 직접 명시한다.
+자세한 근거는 프로젝트 README의 "마크다운 저작 규칙" 절을 참고하세요.
+```
+
+두 방식 모두 규칙 본문을 복제하지 않는다 — 복제하면 README를 고칠 때마다
+스킬/프롬프트도 같이 고쳐야 해서 금방 어긋난다. 스킬은 짧은 안내문(위 예시)
+정도만 유지하고, 프롬프트 블록은 배포 시점의 스냅샷이라는 점을 감안해 이
+README가 바뀌면 함께 갱신한다.
+
 ### 빌드 전 사전 점검 — check
 
 실제로 HTML을 렌더링하지 않고 원본 마크다운만 훑어 빠르게 확인한다 — 챕터가
@@ -271,7 +325,10 @@ mdbook-binder edit <html_경로> [--port 5757] [--out edited.html] [--no-browser
 
 ## 3. 설치 가이드
 
-MDBook-binder는 아직 PyPI에 배포되지 않았다 — 저장소를 직접 받아 설치한다.
+[PyPI](https://pypi.org/project/mdbook-binder/)에 배포돼 있어 `pip install`로
+바로 설치할 수 있다. 개발에 참여하거나 아직 릴리스에 포함되지 않은
+`Unreleased` 상태의 최신 수정 사항을 먼저 쓰려면 저장소를 직접 클론해
+설치한다.
 
 ### 사전 준비
 
@@ -292,7 +349,18 @@ MDBook-binder는 아직 PyPI에 배포되지 않았다 — 저장소를 직접 �
 
   macOS는 별도 시스템 패키지 없이 `playwright install chromium`만으로 충분하다.
 
-### 설치
+### 설치 — PyPI (권장)
+
+```bash
+pip install mdbook-binder                # 코어만 — HTML 빌드/check/편집(수동 조합)
+pip install "mdbook-binder[pdf]"         # + Playwright/pypdf (PDF 빌드용)
+pip install "mdbook-binder[editor]"      # + Flask/Pillow (웹 편집기용)
+pip install "mdbook-binder[pdf,editor]"  # 전체 기능
+
+python -m playwright install --with-deps chromium   # [pdf] 설치 시 1회
+```
+
+### 설치 — 저장소 클론 (개발/최신 미배포 수정 사항)
 
 ```bash
 git clone https://github.com/bullpeng72/MDBook-binder.git
@@ -352,7 +420,10 @@ ruff check src tests
 - **`pdf_book.py`/`editor/`는 자동화된 회귀 테스트가 없다**: 실제 코퍼스로
   수동 검증(Flask test client, Playwright 실제 렌더링)은 마쳤지만
   `manifest.py`/`html_book.py`/`check.py`만큼 pytest로 고정돼 있지는 않다.
-- **PyPI 미배포**: 현재는 git clone + 로컬 편집 가능 설치만 지원한다.
+- **PyPI 배포와 `Unreleased` 변경이력 사이에 시차가 있다**: PyPI의
+  `mdbook-binder`는 최신 태그 버전(`pyproject.toml` 기준)까지만 반영되므로,
+  이 문서의 [변경이력](#변경이력) `Unreleased` 항목은 아직 PyPI에 올라가지
+  않았다 — 그 수정 사항이 필요하면 저장소를 직접 클론해 설치한다.
 
 ---
 
