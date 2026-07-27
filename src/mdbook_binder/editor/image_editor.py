@@ -14,6 +14,8 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
+from mdbook_binder.imgembed import image_to_data_uri
+
 logger = logging.getLogger("mdbook_binder.editor")
 
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
@@ -260,12 +262,7 @@ class ImageEditor:
 
         for img_index, replacement in self.changes["replace"].items():
             img_tag = self.images[img_index - 1]["tag"]
-            new_path = replacement["new_path"]
-            try:
-                rel_path = Path(new_path).relative_to(self.html_path.parent)
-                img_tag["src"] = str(rel_path)
-            except ValueError:
-                img_tag["src"] = new_path
+            img_tag["src"] = image_to_data_uri(Path(replacement["new_path"]))
 
         for dgm_index in sorted(self.changes["diagram_delete"], reverse=True):
             self.diagrams[dgm_index - 1]["container"].decompose()

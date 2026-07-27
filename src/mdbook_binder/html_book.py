@@ -11,19 +11,17 @@ editor/ 가 의존하는 유일한 불변 계약이다 — 다른 무엇을 바�
 
 from __future__ import annotations
 
-import base64
-import mimetypes
 import re
 import unicodedata
 from html import escape as _html_escape
 from pathlib import Path
 
+from mdbook_binder.imgembed import image_to_data_uri
 from mdbook_binder.manifest import LOCALE_STRINGS, BookConfig, resolve
+from mdbook_binder.mermaid_prerender import prerender_mermaid
 from mdbook_binder.render import demote_headings, extract_h1_text, md_to_html, tip_start_pattern
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
-
-_IMG_MIME_OVERRIDES = {".svg": "image/svg+xml"}
 
 
 def _slugify(text: str) -> str:
@@ -77,10 +75,7 @@ def _embed_images_as_data_uri(
         if not abs_path.is_file():
             missing.append((abs_path, src))
             return m.group(0)
-        mime = _IMG_MIME_OVERRIDES.get(abs_path.suffix.lower()) or mimetypes.guess_type(abs_path.name)[0]
-        mime = mime or "application/octet-stream"
-        encoded = base64.b64encode(abs_path.read_bytes()).decode("ascii")
-        return f'src="data:{mime};base64,{encoded}"'
+        return f'src="{image_to_data_uri(abs_path)}"'
 
     return re.sub(r'src="([^"]+)"', _to_data_uri, html_str)
 
@@ -142,16 +137,19 @@ def build_html(
         .replace("__PLACEHOLDER_OF__", locale["of"])
     )
 
+    body_html, needs_mermaid_cdn = prerender_mermaid("\n".join(sections))
+
     html = _render_shell(
         title=title,
         language=language,
         css=css,
         js=js,
         toc_html="\n".join(toc_entries),
-        body_html="\n".join(sections),
+        body_html=body_html,
         search_placeholder=locale["search_placeholder"],
         prev_title=locale["prev_title"],
         next_title=locale["next_title"],
+        needs_mermaid_cdn=needs_mermaid_cdn,
     )
 
     out = out_path or (root / f"{_slugify(title)}.html")
@@ -182,7 +180,15 @@ def _render_shell(
     search_placeholder: str,
     prev_title: str,
     next_title: str,
+    needs_mermaid_cdn: bool,
 ) -> str:
+    # 다이어그램이 전부(또는 애초에 하나도 없어) 사전 렌더링됐다면 CDN mermaid.js
+    # 자체가 필요 없다 — 열람 시 불필요한 외부 요청을 만들지 않도록 태그를 생략한다.
+    mermaid_script_tag = (
+        '<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>\n'
+        if needs_mermaid_cdn
+        else ""
+    )
     return f"""<!DOCTYPE html>
 <html lang="{language}">
 <head>
@@ -191,8 +197,7 @@ def _render_shell(
 <title>{_html_escape(title)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Serif+KR:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+{mermaid_script_tag}<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <style>
 {css}

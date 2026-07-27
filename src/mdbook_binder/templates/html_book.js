@@ -1,15 +1,32 @@
-mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose', fontFamily: 'Noto Sans KR, sans-serif' });
-(document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(function () {
-  mermaid.run({ querySelector: '.mermaid' });
-});
+// CDN(mermaid.js/highlight.js)이 막히거나 로드에 실패해도 이 스크립트의 나머지
+// 부분(검색·TOC 활성화 하이라이트)이 죽지 않도록 전역 참조를 전부 방어적으로 감싼다
+// — 예전엔 톱레벨 mermaid.initialize()가 무방비로 던져서, mermaid가 로드되지
+// 않으면 이 스크립트 블록 전체(아래 DOMContentLoaded 등록까지)가 실행되지
+// 않았다. 사전 렌더링된(data-prerendered) 다이어그램은 다시 렌더링하지 않는다.
+if (typeof mermaid !== 'undefined') {
+  try {
+    mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose', fontFamily: 'Noto Sans KR, sans-serif' });
+    (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(function () {
+      try {
+        var runResult = mermaid.run({ querySelector: '.mermaid:not([data-prerendered])' });
+        if (runResult && typeof runResult.catch === 'function') {
+          runResult.catch(function (e) { console.warn('mermaid.run failed:', e); });
+        }
+      } catch (e) { console.warn('mermaid.run failed:', e); }
+    });
+  } catch (e) { console.warn('mermaid.initialize failed:', e); }
+}
 
 document.addEventListener('DOMContentLoaded', function () {
   const ALLOWED = new Set(['python', 'bash', 'shell', 'sh', 'yaml', 'json', 'javascript', 'js', 'html', 'css', 'sql']);
   document.querySelectorAll('pre code').forEach(block => {
     const cls = block.className || '';
     const m = cls.match(/language-([a-z0-9_+-]+)/);
-    if (m && ALLOWED.has(m[1])) hljs.highlightElement(block);
-    else block.classList.add('plain-code');
+    if (m && ALLOWED.has(m[1]) && typeof hljs !== 'undefined') {
+      try { hljs.highlightElement(block); } catch (e) { block.classList.add('plain-code'); }
+    } else {
+      block.classList.add('plain-code');
+    }
   });
 
   const sections = document.querySelectorAll('.chapter-section[id]');

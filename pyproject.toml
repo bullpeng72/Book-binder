@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mdbook-binder"
-version = "0.2.0"
+version = "0.3.0"
 description = "임의의 마크다운 코퍼스를 검색 가능한 단일 HTML 도서와 PDF(단권/병합)로 변환하고, 결과 HTML을 편집하는 범용 애플리케이션"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -37,6 +37,9 @@ target-version = "py311"
 # Mermaid 렌더링 대기는 최선 노력(best-effort)이라 실패해도 조용히 다음 단계로
 # 진행해야 한다 — Playwright 타임아웃은 흔한 정상 경로다.
 "src/mdbook_binder/pdf_book.py" = ["BLE001", "S110", "S112", "ASYNC230"]
+# Playwright/Chromium 미설치를 포함해 사전 렌더링이 실패할 수 있는 사유가
+# 다양하다 — 무엇이 됐든 CDN 클라이언트 렌더링으로 조용히 폴백해야 한다.
+"src/mdbook_binder/mermaid_prerender.py" = ["BLE001"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -45,4 +48,4 @@ where = ["src"]
 # templates/ 하위 CSS/JS/편집기 SPA는 .py가 아니라 setuptools가 기본으로
 # 담지 않는다 — html_book.py/pdf_book.py가 런타임에 이 파일들을 직접 읽으므로
 # 반드시 wheel/sdist에 포함해야 한다.
-mdbook_binder = ["templates/*", "templates/editor/*"]
+mdbook_binder = ["templates/*", "templates/editor/*", "templates/vendor/*"]

@@ -16,6 +16,8 @@ import markdown
 from bs4 import BeautifulSoup, Tag
 from markdownify import markdownify
 
+from mdbook_binder.imgembed import image_to_data_uri
+
 logger = logging.getLogger("mdbook_binder.editor")
 
 
@@ -315,9 +317,10 @@ class BookHTMLEditor:
 
     def _append_figure(self, sec: Tag, image_path: str, caption: str = "") -> None:
         fig = self.soup.new_tag("figure", attrs={"class": "my-6 text-center"})
+        src = image_path if image_path.startswith("data:") else image_to_data_uri(Path(image_path))
         img = self.soup.new_tag(
             "img",
-            src=image_path,
+            src=src,
             alt=caption or "추가된 이미지",
             attrs={"class": "max-w-full rounded shadow mx-auto"},
         )

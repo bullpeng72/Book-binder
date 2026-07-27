@@ -40,8 +40,8 @@ MDBook-binder는 **임의의 마크다운 파일 모음(코퍼스)을 입력으�
 
 1. **검색 가능한 단일 HTML 도서** — 사이드바 목차, 인페이지 전문 검색을
    갖추고, 이미지는 base64로 인라인 임베드되어 파일 하나만으로 열린다.
-   Mermaid 다이어그램은 열람 시점에 CDN의 `mermaid.js`가 렌더링한다(오프라인
-   제약은 [알려진 한계](#알려진-한계) 참고).
+   Mermaid 다이어그램도 가능하면 빌드 시점에 정적 SVG로 사전 렌더링해
+   같이 임베드한다(오프라인 제약은 [알려진 한계](#알려진-한계) 참고).
 2. **PDF 도서** — 챕터별 개별 PDF 또는 한 권으로 병합(merge)한 PDF.
 3. **HTML 도서 편집기** — 생성된 HTML 도서를 브라우저에서 섹션 단위로 다시
    열어 마크다운·이미지를 편집할 수 있는 웹 편집기.
@@ -102,22 +102,27 @@ MDBook-binder/
 │   ├── manifest.py           # BookConfig(book.yaml) + resolve()/resolve_verbose()
 │   ├── render.py             # md_to_html / demote_headings / 콜아웃·로케일
 │   ├── html_book.py          # HTML 도서 빌더 (사이드바/검색/base64 이미지)
+│   ├── imgembed.py           # 이미지 → base64 data URI 인코딩 공용 유틸
+│   ├── mermaid_prerender.py  # Mermaid 빌드 타임 정적 SVG 사전 렌더링 (Playwright)
 │   ├── pdf_book.py           # PDF 빌더 (청크 캡처 + 개별/병합)
 │   ├── check.py              # 빌드 전 사전 점검
 │   ├── cli.py                # mdbook-binder CLI (check/build html/build pdf/edit)
 │   ├── editor/                # Lecture_forge 포크 — lecture-forge 비의존
-│   │   ├── html_editor.py      # BookHTMLEditor — 섹션 CRUD
-│   │   ├── image_editor.py     # 이미지/다이어그램 편집
+│   │   ├── html_editor.py      # BookHTMLEditor — 섹션 CRUD, 이미지 추가(base64 임베드)
+│   │   ├── image_editor.py     # 이미지/다이어그램 편집, 이미지 교체(base64 임베드)
 │   │   └── server.py           # Flask 편집 API 서버
 │   └── templates/
 │       ├── html_book.css/js    # HTML 도서 사이드바·검색·mermaid
 │       ├── pdf_override.css    # PDF 전용 레이아웃 오버라이드(CSS)
 │       ├── pdf_book.js         # PDF 렌더링 보정(Mermaid 크기 측정·청크 분할)
+│       ├── vendor/              # 번들된 mermaid.min.js (오프라인 빌드타임 렌더링용)
 │       └── editor/              # 편집 SPA (index.html/editor.css/editor.js)
 └── tests/
-    ├── test_manifest.py      # 3단계 순서 해석 (5건)
-    ├── test_html_book.py     # 섹션 id 충돌 회피·이미지 임베드 (3건)
-    └── test_check.py         # 사전 점검 (4건)
+    ├── test_manifest.py          # 3단계 순서 해석 (5건)
+    ├── test_html_book.py         # 섹션 id 충돌 회피·이미지 임베드 (3건)
+    ├── test_check.py             # 사전 점검 (4건)
+    ├── test_editor.py            # 이미지 추가/교체 후 base64 임베드 (2건)
+    └── test_mermaid_prerender.py # Mermaid 사전 렌더링 성공/폴백 (3건)
 ```
 
 ---
@@ -286,8 +291,11 @@ mdbook-binder build html <코퍼스_루트> [--out out.html] [--title ...] [--la
 
 - 이미지를 base64 data URI로 인라인 임베드 — 이미지 폴더 없이도 단일 파일로
   완전히 독립적으로 열린다(다른 PC로 옮기거나 이메일 첨부해도 그대로 열림).
-- 인페이지 전문 검색(하이라이트·이전/다음 이동), Mermaid 다이어그램 렌더링,
-  사이드바 목차 자동 생성.
+- Mermaid 다이어그램은 Playwright/Chromium이 설치돼 있으면(`[pdf]` extra)
+  빌드 시점에 정적 SVG로 미리 렌더링해 그대로 삽입한다 — 열람 시 CDN
+  mermaid.js가 필요 없어져 완전한 오프라인 단일 파일이 된다. Playwright가
+  없으면 조용히 원본 마크업으로 폴백해 기존처럼 열람 시 CDN에서 렌더링한다.
+- 인페이지 전문 검색(하이라이트·이전/다음 이동), 사이드바 목차 자동 생성.
 - 서로 다른 Part의 챕터 제목이 우연히 같아도(예: "개요") 섹션 id 충돌을
   자동으로 회피한다.
 - 빌드 끝에 누락된 이미지 참조를 한 번에 모아 요약 출력한다.
@@ -386,7 +394,7 @@ mdbook-binder build pdf ~/Docs/my-book --merge      # 4. (선택) 단권 PDF
 
 ```bash
 pip install -e ".[dev,pdf,editor]"
-pytest tests/ -q      # 12개 테스트 (manifest 5 + html_book 3 + check 4)
+pytest tests/ -q      # 17개 테스트 (manifest 5 + html_book 3 + check 4 + editor 2 + mermaid_prerender 3)
 ruff check src tests
 ```
 
@@ -394,12 +402,20 @@ ruff check src tests
 
 ## 알려진 한계
 
-- **HTML 도서는 이미지만 오프라인이고 나머지는 CDN 의존적이다**: 이미지는
-  base64로 인라인 임베드되지만, Mermaid 렌더링(`mermaid@10`)·코드 하이라이트
-  (`highlight.js`)·본문 웹폰트(Google Fonts)는 `<script>`/`<link>` 태그로
-  매번 CDN에서 불러온다 — 완전히 오프라인인 환경(인터넷 차단 사내망 등)에서
-  열면 다이어그램이 원본 mermaid 텍스트 그대로 보이고 코드 하이라이트·폰트도
-  브라우저 기본값으로 대체된다.
+- **HTML 도서는 이미지·Mermaid 다이어그램만 오프라인이고, 코드 하이라이트·
+  폰트는 여전히 CDN 의존적이다**: 이미지는 항상 base64로 인라인 임베드되고,
+  Mermaid는 빌드 시점에 Playwright/Chromium(`[pdf]` extra)이 있으면 정적
+  SVG로 사전 렌더링돼 같이 임베드된다 — 없으면 열람 시 CDN `mermaid.js`로
+  폴백한다(빌드 로그에 안내 출력). 반면 코드 하이라이트(`highlight.js`)와
+  본문 웹폰트(Google Fonts)는 아직 `<script>`/`<link>` 태그로 매번 CDN에서
+  불러온다 — 완전히 오프라인인 환경(인터넷 차단 사내망 등)에서 열면 코드
+  하이라이트·폰트가 브라우저 기본값으로 대체된다(내용 자체는 읽을 수 있음).
+  CDN 스크립트가 로드에 실패해도 검색·목차 활성화 등 나머지 기능은 죽지
+  않도록 방어적으로 처리돼 있다.
+- **Mermaid 오프라인 사전 렌더링 대가로 패키지 용량이 커졌다**: 빌드 자체도
+  네트워크 없이 동작하도록 `templates/vendor/mermaid.min.js`(약 3.3MB)를
+  패키지에 번들했다 — 생성되는 각 HTML 도서 파일 크기와는 무관하고, `pip
+  install mdbook-binder` 1회 설치 용량에만 영향을 준다.
 - **병합 PDF(`--merge`)에는 챕터별 북마크(아웃라인)가 없다**: `pypdf`로 개별
   챕터 PDF를 순서대로 이어붙이기만 하고(`PdfWriter.append()`에 `outline_item`을
   넘기지 않음) 원본 챕터 PDF 자체에도 아웃라인이 없으므로, 병합본을 PDF
@@ -414,16 +430,40 @@ ruff check src tests
 - **`Part_<로마숫자>_...` 명명 규칙 감지(2순위)는 `Appendix/`만 특별 취급**:
   그 외 비-Part 디렉토리는 3순위 자연정렬로만 잡힌다 — 필요하면 `book.yaml`의
   `order.files`로 명시하는 게 안전하다.
-- **`pdf_book.py`/`editor/`는 자동화된 회귀 테스트가 없다**: 실제 코퍼스로
-  수동 검증(Flask test client, Playwright 실제 렌더링)은 마쳤지만
-  `manifest.py`/`html_book.py`/`check.py`만큼 pytest로 고정돼 있지는 않다.
+- **`pdf_book.py`/`editor/`는 회귀 테스트가 일부만 있다**: 이미지 추가/교체
+  후 base64 임베드가 유지되는지는 `test_editor.py`로 고정돼 있지만,
+  Flask API 엔드포인트·섹션 CRUD·다이어그램 편집·PDF 렌더링 자체는 실제
+  코퍼스로 수동 검증만 마쳤을 뿐 `manifest.py`/`html_book.py`/`check.py`만큼
+  pytest로 고정돼 있지는 않다.
+- **PyPI 배포와 `Unreleased` 변경이력 사이에 시차가 있다**: PyPI의
+  `mdbook-binder`는 최신 태그 버전(`pyproject.toml` 기준)까지만 반영되므로,
+  이 문서의 [변경이력](#변경이력) `Unreleased` 항목은 아직 PyPI에 올라가지
+  않았다 — 그 수정 사항이 필요하면 저장소를 직접 클론해 설치한다.
 
 ---
 
 ## 변경이력
 
-### Unreleased
+### 0.3.0 (2026-07-27)
 
+- **feat**: Mermaid 다이어그램을 HTML 빌드 시점에 Playwright/Chromium으로
+  정적 SVG로 사전 렌더링해 인라인 삽입(`mermaid_prerender.py`, 신규 모듈).
+  성공하면 열람 시 CDN `mermaid.js`(3.3MB)가 전혀 필요 없어 완전한 오프라인
+  단일 파일이 되고, 다이어그램이 없거나 Playwright가 없으면 자동으로
+  CDN 태그 자체를 생략(전자)하거나 기존 CDN 클라이언트 렌더링으로
+  폴백(후자)한다. 빌드 시점 렌더링도 `templates/vendor/mermaid.min.js`를
+  번들해 네트워크 없이 동작한다.
+- **fix**: `html_book.js` 최상단의 `mermaid.initialize(...)`가 톱레벨에서
+  무방비로 실행돼, CDN이 막혀 `mermaid`가 `undefined`면 그 예외가 같은
+  `<script>` 블록의 나머지(코드 하이라이트·TOC 활성화·전문 검색)까지
+  통째로 실행되지 못하게 막던 문제 수정 — `mermaid`/`hljs` 전역 참조를
+  존재 확인 + `try/catch`로 감싸 CDN 실패가 다른 기능에 전파되지 않게 함.
+- **fix**: 편집기(`edit`)에서 이미지를 추가·교체한 뒤 저장하면 `src`에
+  파일 경로가 그대로 남아, 최초 빌드본과 달리 편집본이 이미지 폴더 없이는
+  열리지 않던 문제 수정. `imgembed.py`에 base64 인코딩 로직을 공용
+  유틸로 뽑아 `html_book.py`(최초 빌드)·`image_editor.py`(이미지 교체)·
+  `html_editor.py`(이미지 추가)가 모두 공유하도록 해, 편집 후 저장한
+  HTML도 항상 완전한 단일 파일로 유지되도록 함.
 - **fix**: PDF 변환 시 Mermaid 다이어그램이 실제보다 과도하게 확대되어 여러
   페이지에 걸쳐 표시되던 문제, 그 앞뒤로 빈 페이지가 삽입되던 문제 수정.
   `pdf_override.css`의 `.mermaid svg { max-width:100% !important }`가
