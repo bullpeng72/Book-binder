@@ -23,6 +23,7 @@
   - [HTML 편집](#html-편집)
 - [3. 설치 가이드](#3-설치-가이드)
 - [알려진 한계](#알려진-한계)
+- [변경이력](#변경이력)
 - [라이선스](#라이선스)
 
 ---
@@ -207,9 +208,11 @@ mdbook-binder build pdf <코퍼스_루트> --out-dir <디렉토리>    # 출력 
 
 각 챕터를 Playwright/Chromium으로 독립 렌더링한다. 긴 Mermaid 다이어그램은
 청크 단위로 스크린샷 캡처해 삽입해 페이지 경계에서 잘리는 문제를 피한다.
-병합도 각 챕터를 동일한 코드 경로로 개별 렌더링한 뒤 pypdf로 PDF 객체
-레벨에서 합쳐, 개별 생성과 병합 생성의 폰트 크기·다이어그램 해상도가 항상
-동일하다.
+다이어그램은 `viewBox`에서 읽은 자연 크기를 기준으로 페이지 폭을 넘을 때만
+축소하며, CSS가 강제로 확대해 여러 페이지에 걸쳐 표시되거나 그 앞뒤로 빈
+페이지가 삽입되는 문제를 방지한다. 병합도 각 챕터를 동일한 코드 경로로
+개별 렌더링한 뒤 pypdf로 PDF 객체 레벨에서 합쳐, 개별 생성과 병합 생성의
+폰트 크기·다이어그램 해상도가 항상 동일하다.
 
 ### HTML 편집
 
@@ -296,6 +299,41 @@ ruff check src tests
   수동 검증(Flask test client, Playwright 실제 렌더링)은 마쳤지만
   `manifest.py`/`html_book.py`/`check.py`만큼 pytest로 고정돼 있지는 않다.
 - **PyPI 미배포**: 현재는 git clone + 로컬 편집 가능 설치만 지원한다.
+
+---
+
+## 변경이력
+
+### Unreleased
+
+- **fix**: PDF 변환 시 Mermaid 다이어그램이 실제보다 과도하게 확대되어 여러
+  페이지에 걸쳐 표시되던 문제, 그 앞뒤로 빈 페이지가 삽입되던 문제 수정.
+  `pdf_override.css`의 `.mermaid svg { max-width:100% !important }`가
+  Mermaid 자신의 자연 크기 힌트(인라인 `style="max-width: Npx"`)를 덮어써
+  `width="100%"` 속성이 그대로 적용되는 게 근본 원인이었다 — 다이어그램을
+  `viewBox`에서 읽은 자연 크기 기준으로 측정해, 페이지 폭을 넘을 때만
+  축소하도록 수정.
+- **fix**: PDF 1차 렌더링 컨텍스트에 뷰포트 폭을 지정하지 않아 기본값
+  (1280px)으로 레이아웃된 뒤 뒤늦게 좁히면서 텍스트가 재줄바꿈되어 문서
+  높이가 측정값을 벗어나던 문제 수정 — 렌더링 시작 시점부터 PDF 목표 폭을
+  고정.
+
+### 0.2.0 (2026-07-27)
+
+- **feat**: `mdbook-binder --version` 옵션 추가.
+- **fix**: `__init__.py`의 버전/패키지명이 `pyproject.toml`과 어긋난 것 수정.
+- **chore**: `pyproject.toml` 버전을 0.2.0으로 갱신, ruff
+  `per-file-ignores`에 `S112` 추가.
+
+### 0.1.0 (2026-07-26)
+
+- **rename**: CLI/패키지명을 `book-binder`에서 `mdbook-binder`로 변경.
+- **fix**: wheel/sdist 빌드 시 `templates/` 디렉토리가 누락되는 문제 수정.
+- **feat**: `book.yaml`의 `custom_css` 지원 추가, Mermaid 렌더링 안정성 개선.
+- **fix**: PDF 변환 시 다이어그램·이미지 해상도가 저하되는 문제 개선.
+- **docs**: README 전면 재작성, LICENSE 추가.
+- **feat**: 초기 구현 — 마크다운 코퍼스를 HTML/PDF 도서로 변환·편집하는
+  애플리케이션.
 
 ---
 

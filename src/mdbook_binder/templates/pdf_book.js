@@ -56,10 +56,24 @@
   });
 
   // Mermaid SVG 크기 보정
+  // Mermaid는 svg에 width="100%" 속성과 함께 style="max-width: Npx"(자연 크기)를
+  // 주입하는데, pdf_override.css의 ".mermaid svg { max-width:100% !important }"가
+  // !important로 그 인라인 max-width를 덮어써 버린다. 그 결과 getBoundingClientRect()
+  // 로 측정하면 width:100% 속성이 그대로 적용되어 항상 컨테이너 전체 폭으로 늘어난
+  // 크기가 나오고, 그 늘어난 폭 기준으로 종횡비를 유지한 채 height도 함께 부풀어
+  // (특히 세로로 긴 다이어그램에서 수 배 확대) 여러 페이지에 걸쳐 표시되는 문제가
+  // 있었다. CSS 간섭을 받지 않는 viewBox(자연 좌표계 = 자연 px 크기)에서 폭·높이를
+  // 읽어, 그 폭이 availW를 초과할 때만 축소한다(자연 크기가 이미 작으면 그대로 유지
+  // — 강제로 확대하지 않음).
   document.querySelectorAll('.mermaid svg').forEach(svg => {
-    svg.style.cssText = '';
-    const r = svg.getBoundingClientRect();
-    const w = r.width, h = r.height;
+    const vb = (svg.getAttribute('viewBox') || '').trim().split(/\s+/).map(Number);
+    let w, h;
+    if (vb.length === 4 && vb[2] > 0 && vb[3] > 0) {
+      w = vb[2]; h = vb[3];
+    } else {
+      const r = svg.getBoundingClientRect();
+      w = r.width; h = r.height;
+    }
     if (w <= 0 || h <= 0) return;
     const scale = w > availW ? availW / w : 1;
     svg.setAttribute('width', Math.ceil(w * scale));

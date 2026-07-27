@@ -109,7 +109,17 @@ async def convert_one(
 
     temp_dir = Path(tempfile.mkdtemp(prefix="book_binder_pdf_"))
     try:
-        ctx1 = await browser.new_context(device_scale_factor=_DEVICE_SCALE)
+        # 뷰포트 폭은 처음부터 PDF 목표 폭(_PDF_CONTENT_W)으로 고정한다. 폭을 기본값(1280px)
+        # 그대로 두면 pdf_book.js의 mermaid/table 스케일 계산이 잘못된(더 넓은) availW
+        # 기준으로 이뤄지고, 이후 뷰포트를 좁히는 순간 텍스트 줄바꿈이 늘어나 문서가
+        # 측정한 full_h보다 더 길어진다 — 문서 끝부분 요소가 뷰포트 밖으로 밀려나면
+        # screenshot(clip=...)이 좌표를 벗어나 캡처 실패(빈 chunk → 원본 mermaid div
+        # 그대로 잔존)로 이어져 빈 페이지가 삽입되고, 가로형 다이어그램은 잘못된
+        # availW 기준으로 스케일되어 과대 표시된다.
+        ctx1 = await browser.new_context(
+            device_scale_factor=_DEVICE_SCALE,
+            viewport={"width": _PDF_CONTENT_W, "height": 800},
+        )
         render_page = await ctx1.new_page()
         await render_page.set_content(html, wait_until="networkidle")
         try:
