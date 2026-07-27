@@ -90,7 +90,11 @@ pre code {
   padding: 16px;
   overflow: visible;
   break-before: avoid-page;
-  break-inside: auto;
+  /* 정상 흐름에서는 pdf_book.py가 이 컨테이너를 청크 스크린샷으로 치환하므로
+     이 규칙은 적용되지 않는다. 치환이 실패했을 때(svg 없음/크기 0/캡처 예외)
+     남는 원본 컨테이너가 페이지 경계에서 임의 위치에 잘리지 않도록
+     break-inside: avoid로 방어한다. */
+  break-inside: avoid;
 }
 .mermaid svg {
   max-width: 100% !important;

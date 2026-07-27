@@ -11,7 +11,6 @@ Playwright/Chromium으로 각 챕터를 독립 렌더링한다. Mermaid 다이�
 from __future__ import annotations
 
 import asyncio
-import math
 import re
 import shutil
 import tempfile
@@ -45,6 +44,71 @@ def _rewrite_img_paths(html_str: str, base_dir: Path) -> str:
         return f'src="file://{abs_path}"'
 
     return re.sub(r'src="([^"]+)"', _to_abs, html_str)
+
+
+def _merge_bands(bands: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """겹치는 (y0, y1) 구간들을 하나로 합친다."""
+    if not bands:
+        return []
+    ordered = sorted(bands)
+    merged = [list(ordered[0])]
+    for s, e in ordered[1:]:
+        if s <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], e)
+        else:
+            merged.append([s, e])
+    return [(s, e) for s, e in merged]
+
+
+def _is_occupied(y: float, bands: list[tuple[float, float]]) -> bool:
+    return any(s < y < e for s, e in bands)
+
+
+def _nearest_safe_y(target: float, bands: list[tuple[float, float]], lo: float, hi: float) -> float:
+    """target 근방에서 도형/텍스트와 겹치지 않는 y좌표를 찾는다. 못 찾으면 target 그대로 반환한다."""
+    if lo > hi:
+        return target
+    target = max(lo, min(hi, target))
+    if not _is_occupied(target, bands):
+        return target
+    offset = 2.0
+    while True:
+        left, right = target - offset, target + offset
+        left_ok, right_ok = left >= lo, right <= hi
+        if not left_ok and not right_ok:
+            return target
+        if left_ok and not _is_occupied(left, bands):
+            return left
+        if right_ok and not _is_occupied(right, bands):
+            return right
+        offset += 2.0
+
+
+def _chunk_boundaries(th: float, bands_raw: list[tuple[float, float]], chunk_h: int) -> list[float]:
+    """다이어그램 전체 높이(th)를 chunk_h 근처 간격으로 나누되, 도형/텍스트 중앙을 피해
+    자연스러운 여백에서 끊는 경계 목록을 반환한다.
+
+    고정된 chunk_h 간격으로만 자르면 박스나 라벨이 정확히 경계에 걸렸을 때 그대로
+    반토막나고, 그 반쪽 청크가 PDF 페이지 경계에 걸리면 도형이 시각적으로 잘려
+    보인다. 각 경계를 목표 지점 주변에서 비어 있는(도형이 없는) y좌표로 옮겨
+    이를 피한다.
+    """
+    if th <= chunk_h:
+        return [0.0, float(th)]
+    bands = _merge_bands(bands_raw)
+    min_chunk = chunk_h * 0.4
+    max_chunk = chunk_h * 1.6
+    boundaries = [0.0]
+    y = 0.0
+    while y < th:
+        target = y + chunk_h
+        if target >= th:
+            boundaries.append(float(th))
+            break
+        safe = _nearest_safe_y(target, bands, y + min_chunk, min(y + max_chunk, th))
+        boundaries.append(safe)
+        y = safe
+    return boundaries
 
 
 def _mermaid_chunk_html(chunks: list[tuple[str, int, int]]) -> str:
@@ -145,20 +209,33 @@ async def convert_one(
                     svg.setAttribute('height', th);
                     svg.style.cssText = 'display:block;margin:0 auto;';
                     const b = svg.getBoundingClientRect();
-                    return {{x: b.x, y: b.y, w: Math.round(b.width), h: Math.round(b.height)}};
+                    // 도형/텍스트가 차지하는 y구간을 모아, 청크 경계가 그 한가운데를
+                    // 가로지르지 않도록 한다 (박스/라벨이 반토막나는 것을 방지).
+                    const bands = [];
+                    svg.querySelectorAll('rect, polygon, circle, ellipse, text, path, image').forEach(el => {{
+                        const er = el.getBoundingClientRect();
+                        if (er.width <= 0 || er.height <= 0) return;
+                        const y0 = er.top - b.y;
+                        const y1 = er.bottom - b.y;
+                        if (y1 <= 0 || y0 >= b.height) return;
+                        bands.push([Math.max(0, y0), Math.min(b.height, y1)]);
+                    }});
+                    return {{x: b.x, y: b.y, w: Math.round(b.width), h: Math.round(b.height), bands}};
                 }}""")
                 if not info:
                     continue
 
                 sx, sy, tw, th = info["x"], info["y"], info["w"], info["h"]
-                n_chunks = max(1, math.ceil(th / _CHUNK_H))
+                bands = [(b[0], b[1]) for b in info.get("bands", [])]
+                boundaries = _chunk_boundaries(th, bands, _CHUNK_H)
                 chunks: list[tuple[str, int, int]] = []
 
-                for ci in range(n_chunks):
-                    ry = round(sy + ci * _CHUNK_H)
-                    ch = min(_CHUNK_H, round(sy + th) - ry)
+                for ci in range(len(boundaries) - 1):
+                    y0, y1 = boundaries[ci], boundaries[ci + 1]
+                    ry = round(sy + y0)
+                    ch = round(y1 - y0)
                     if ch <= 0:
-                        break
+                        continue
                     png = await render_page.screenshot(
                         type="png",
                         clip={"x": round(sx), "y": ry, "width": tw, "height": ch},
