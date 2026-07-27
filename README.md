@@ -49,10 +49,7 @@ MDBook-binder는 **임의의 마크다운 파일 모음(코퍼스)을 입력으�
 코퍼스가 `book.yaml`로 순서·제목·콜아웃 마커 등을 명시하면 그대로 따르고,
 없으면 파일/디렉토리 명명 규칙이나 디렉토리 트리 자연정렬로 순서를 자동
 추론한다 — 그래서 새 마크다운 파일이 추가되어도 코드나 설정을 건드릴 필요가
-없다. `Book_forge/Book`, `Agent-Evaluator/Media/Book`,
-`Agent-Evaluator/Media/AOO` 세 프로젝트가 이 패키지 하나를 공통 의존성으로
-참조해 동일한 빌드 엔진을 공유한다 — 어느 프로젝트도 빌드 엔진 자체를
-소유하지 않는다.
+없다.
 
 ### 아키텍처
 
@@ -79,8 +76,8 @@ flowchart TD
 1. **순서 해석은 3단계 우선순위**로 자동 결정된다 — 코드 수정 없이 새
    마크다운 파일이 반영되도록 하는 것이 핵심 목표다.
    1. 명시적 `book.yaml`(`order.manifest` 또는 `order.files`)
-   2. `book.yaml`이 없어도 루트에 ` ```toc ` 펜스 매니페스트(Book-forge 목차
-      포맷)가 있으면 자동 채택
+   2. `book.yaml`이 없어도 루트에 ` ```toc ` 펜스 매니페스트가 있으면 자동
+      채택
    3. `Part_<로마숫자>_.../Chapter_<NN>_...` 명명 규칙 감지
    4. 위 전부 실패 시 디렉토리 트리 전체를 자연정렬(natural sort)해 전부
       포함 — "새 파일이 조용히 누락되는 일"을 구조적으로 없애는 최종 폴백
@@ -102,7 +99,7 @@ MDBook-binder/
 ├── LICENSE
 ├── README.md
 ├── src/mdbook_binder/
-│   ├── manifest.py          # BookConfig(book.yaml) + resolve()/resolve_verbose()
+│   ├── manifest.py           # BookConfig(book.yaml) + resolve()/resolve_verbose()
 │   ├── render.py             # md_to_html / demote_headings / 콜아웃·로케일
 │   ├── html_book.py          # HTML 도서 빌더 (사이드바/검색/base64 이미지)
 │   ├── pdf_book.py           # PDF 빌더 (청크 캡처 + 개별/병합)
@@ -118,9 +115,9 @@ MDBook-binder/
 │       ├── pdf_book.js         # PDF 렌더링 보정(Mermaid 크기 측정·청크 분할)
 │       └── editor/              # 편집 SPA (index.html/editor.css/editor.js)
 └── tests/
-    ├── test_manifest.py       # 3단계 순서 해석 (5건)
-    ├── test_html_book.py      # 섹션 id 충돌 회피·이미지 임베드 (3건)
-    └── test_check.py          # 사전 점검 (4건)
+    ├── test_manifest.py      # 3단계 순서 해석 (5건)
+    ├── test_html_book.py     # 섹션 id 충돌 회피·이미지 임베드 (3건)
+    └── test_check.py         # 사전 점검 (4건)
 ```
 
 ---
@@ -300,7 +297,7 @@ mdbook-binder build html <코퍼스_루트> [--out out.html] [--title ...] [--la
 ```bash
 mdbook-binder build pdf <코퍼스_루트>                        # 챕터별 개별 A4 PDF
 mdbook-binder build pdf <코퍼스_루트> --merge [이름]          # 단권으로 병합
-mdbook-binder build pdf <코퍼스_루트> --out-dir <디렉토리>    # 출력 위치 지정
+mdbook-binder build pdf <코퍼스_루트> --out-dir <디렉토리>     # 출력 위치 지정
 ```
 
 각 챕터를 Playwright/Chromium으로 독립 렌더링한다. 긴 Mermaid 다이어그램은
@@ -411,19 +408,15 @@ ruff check src tests
 - **PDF/HTML 부분 빌드 미지원**: 원본 `build_pdf_chapters.py`가 갖고 있던
   "파일/패턴 지정 부분 변환"은 아직 이식하지 않았다 — 항상 코퍼스 전체를
   대상으로 빌드한다.
-- **마크다운 스캐폴딩(정형 스텁 생성) 미포함**: 의도적으로 범위에서 제외했다
-  (Book-forge 자체 저작 파이프라인과 중복 방지 목적) — 새 챕터 파일은 손으로
-  작성해야 한다.
+- **마크다운 스캐폴딩(정형 스텁 생성) 미포함**: 의도적으로 범위에서
+  제외했다 — 마크다운 저작 자체는 각자의 저작 파이프라인에 맡기고, 이
+  도구는 빌드/편집에만 집중한다. 새 챕터 파일은 손으로 작성해야 한다.
 - **`Part_<로마숫자>_...` 명명 규칙 감지(2순위)는 `Appendix/`만 특별 취급**:
   그 외 비-Part 디렉토리는 3순위 자연정렬로만 잡힌다 — 필요하면 `book.yaml`의
   `order.files`로 명시하는 게 안전하다.
 - **`pdf_book.py`/`editor/`는 자동화된 회귀 테스트가 없다**: 실제 코퍼스로
   수동 검증(Flask test client, Playwright 실제 렌더링)은 마쳤지만
   `manifest.py`/`html_book.py`/`check.py`만큼 pytest로 고정돼 있지는 않다.
-- **PyPI 배포와 `Unreleased` 변경이력 사이에 시차가 있다**: PyPI의
-  `mdbook-binder`는 최신 태그 버전(`pyproject.toml` 기준)까지만 반영되므로,
-  이 문서의 [변경이력](#변경이력) `Unreleased` 항목은 아직 PyPI에 올라가지
-  않았다 — 그 수정 사항이 필요하면 저장소를 직접 클론해 설치한다.
 
 ---
 
