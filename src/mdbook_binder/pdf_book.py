@@ -99,24 +99,24 @@ def _nearest_safe_y(target: float, bands: list[tuple[float, float]], lo: float, 
 
 
 def _chunk_boundaries(
-    th: float, bands_raw: list[tuple[float, float]], page_h: float, page_offset: float
+    th: float, bands_raw: list[tuple[float, float]], page_h: float, remaining_first: float
 ) -> list[float]:
     """다이어그램 전체 높이(th)를 실제 PDF 페이지 경계에 맞춰 나누되, 도형/텍스트
     중앙을 피해 자연스러운 여백에서 끊는 경계 목록을 반환한다.
 
-    각 청크의 목표 크기를 고정값이 아니라 "이 페이지에 남은 공간"(첫 청크) ·
-    "페이지 한 장 분량"(이후 청크)으로 잡는다. page_offset은 다이어그램 시작
-    지점이 현재 페이지 안에서 이미 차지한 높이 — 이걸 무시하고 항상 다이어그램의
-    0지점부터 고정 간격으로 자르면, 청크 경계와 실제 페이지 경계가 어긋나 청크
-    하나가 페이지 절반도 못 채운 채 break-inside:avoid로 통째로 다음 페이지에
-    밀리고, 이전 페이지 하단에는 그만큼 빈 공백이 남는다. 각 경계는 목표 지점
-    주변에서 비어 있는(도형이 없는) y좌표로 옮겨 박스/라벨이 반토막나는 것도
-    피한다.
+    각 청크의 목표 크기를 고정값이 아니라 "이 페이지에 남은 공간"(첫 청크,
+    remaining_first) · "페이지 한 장 분량"(이후 청크)으로 잡는다. remaining_first는
+    다이어그램이 시작하는 지점부터 그 페이지가 끝나기까지 실측된 공간이다 — 이걸
+    무시하고 항상 다이어그램의 0지점부터 고정 간격으로 자르면, 청크 경계와 실제
+    페이지 경계가 어긋나 청크 하나가 페이지 절반도 못 채운 채 break-inside:avoid로
+    통째로 다음 페이지에 밀리고, 이전 페이지 하단에는 그만큼 빈 공백이 남는다.
+    각 경계는 목표 지점 주변에서 비어 있는(도형이 없는) y좌표로 옮겨 박스/라벨이
+    반토막나는 것도 피한다.
     """
     # 페이지 하단에 아주 조금(15% 미만)만 남았으면 그 자투리에 억지로 첫 청크를
     # 욱여넣지 않는다 — 검색 구간이 너무 좁아 안전한 절단 지점을 못 찾고 도형
     # 한가운데를 그대로 자를 위험이 커진다. 이 경우 다음 페이지 처음부터 채운다.
-    remaining = page_h - page_offset
+    remaining = remaining_first
     if remaining < page_h * 0.15:
         remaining = page_h
     if th <= remaining:
@@ -142,6 +142,77 @@ def _chunk_boundaries(
         y = safe
         budget = page_h
     return boundaries
+
+
+async def _measure_remaining_space(render_page, container, page_h: float, temp_dir: Path, seq: int) -> float | None:
+    """컨테이너가 문서 흐름상 시작하는 지점에서, 실제로 인쇄될 페이지에 남은
+    공간을 측정한다.
+
+    document.body.scrollHeight 기준 순수 흐름 높이만으로 y % 페이지높이를
+    계산하면, 제목/표/인용구 등에 걸린 break-avoid CSS 규칙이 실제 페이지 경계를
+    앞당기는 걸 전혀 반영하지 못한다 — 챕터 앞부분에서는 오차가 작아도, 그런
+    요소가 많이 쌓인 챕터 뒤쪽에서는 실측으로 수백 px 어긋나는 경우가 확인됐다.
+
+    처음에는 y좌표 마커를 `position: absolute`로 문서 전체에 흩뿌려 어느
+    페이지에 찍히는지 읽는 방식을 시도했으나, 절대 위치 요소는 여러 페이지에
+    걸친 컨테이닝 블록(body) 안에서 어느 페이지 조각에 귀속되는지가 명세상
+    회색지대라 실측 결과가 실제 본문 페이지 배치와 맞지 않았다(같은 컨테이너의
+    시작 지점을 가리키는 마커가, 그 앞에 오는 제목보다 더 이른 페이지에 찍히는
+    모순이 실측으로 확인됨). 대신 컨테이너의 내용을 임시로 "자"(고정 높이 줄이
+    오프셋 라벨을 담은 일반 흐름 요소들)로 바꿔치기한다 — 일반 흐름 콘텐츠는
+    페이지 나눔이 소스 순서를 절대 어기지 않으므로, 이 자가 어느 페이지에서
+    잘리는지 읽으면 컨테이너 시작 지점 기준 실제 남은 공간을 모호함 없이 알 수
+    있다. 측정 후에는 컨테이너 내용을 원래대로 되돌린다.
+
+    호출부가 이 함수를 부르기 전에 대상 컨테이너의 `break-inside`를 일시
+    해제해둬야 한다 — 그러지 않으면 `.mermaid { break-inside: avoid }` 규칙
+    때문에 이 자 콘텐츠 전체가 안 들어가는 페이지에서 통째로 다음 페이지로
+    밀리며 측정 자체가 무의미해진다.
+
+    측정에 실패하면(렌더링/파싱 오류 등) None을 반환해, 호출부가 순수 흐름
+    높이 기준 근사치로 폴백하게 한다.
+    """
+    try:
+        interval = 20
+        # 페이지 하나보다 넉넉히 긴 자를 컨테이너 시작 지점에 채워 넣는다 — 남은
+        # 공간이 얼마든(최대가 page_h) 이 자의 일부는 반드시 다음 페이지로
+        # 넘어가므로, "시작 페이지에서 관측되는 최댓값"이 곧 실제 남은 공간이다.
+        max_offset = int(page_h * 1.3)
+        ruler_html = "".join(
+            f'<div style="height:{interval}px;overflow:hidden;font-size:10px;'
+            f'line-height:{interval}px;margin:0;padding:0;">RULER_{off}</div>'
+            for off in range(0, max_offset, interval)
+        )
+
+        original_html = await container.evaluate("(el) => el.innerHTML")
+        await container.evaluate("(el, html) => { el.innerHTML = html; }", ruler_html)
+        try:
+            measure_path = temp_dir / f"measure_{seq:04d}.pdf"
+            await render_page.pdf(
+                path=str(measure_path),
+                format="A4",
+                margin={
+                    "top": f"{_PDF_MARGIN_TOP_MM}mm",
+                    "right": f"{_PDF_MARGIN_RIGHT_MM}mm",
+                    "bottom": f"{_PDF_MARGIN_BOTTOM_MM}mm",
+                    "left": f"{_PDF_MARGIN_LEFT_MM}mm",
+                },
+            )
+        finally:
+            await container.evaluate("(el, html) => { el.innerHTML = html; }", original_html)
+
+        import pypdf
+
+        reader = pypdf.PdfReader(str(measure_path))
+        marker_re = re.compile(r"RULER_(\d+)")
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            found = [int(m) for m in marker_re.findall(text)]
+            if 0 in found:
+                return float(max(found))
+        return None
+    except Exception:
+        return None
 
 
 def _mermaid_chunk_html(chunks: list[tuple[str, int, int]]) -> str:
@@ -273,8 +344,20 @@ async def convert_one(
 
                 sx, sy, tw, th = info["x"], info["y"], info["w"], info["h"]
                 bands = [(b[0], b[1]) for b in info.get("bands", [])]
-                page_offset = sy % _PAGE_CONTENT_H
-                boundaries = _chunk_boundaries(th, bands, _PAGE_CONTENT_H, page_offset)
+
+                # 이 컨테이너 자신의 break-inside:avoid를 측정 동안만 해제한다 —
+                # 그러지 않으면 자(ruler) 콘텐츠 전체가 안 들어가는 페이지에서
+                # 통째로 다음 페이지로 밀리며 측정 자체가 무의미해진다
+                # (_measure_remaining_space 참고).
+                await container.evaluate("(el) => { el.style.breakInside = 'auto'; }")
+                remaining_first = await _measure_remaining_space(
+                    render_page, container, _PAGE_CONTENT_H, temp_dir, idx
+                )
+                await container.evaluate("(el) => { el.style.breakInside = ''; }")
+                if remaining_first is None:
+                    remaining_first = _PAGE_CONTENT_H - (sy % _PAGE_CONTENT_H)
+
+                boundaries = _chunk_boundaries(th, bands, _PAGE_CONTENT_H, remaining_first)
                 chunks: list[tuple[str, int, int]] = []
 
                 for ci in range(len(boundaries) - 1):
