@@ -26,7 +26,19 @@ _TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 _PDF_CONTENT_W = 624
 _AVAIL_W = _PDF_CONTENT_W - 32
-_CHUNK_H = 300
+
+# PDF 페이지 여백. 아래 page.pdf() 호출과 반드시 같은 값을 써야 한다 — 다이어그램
+# 청크 크기를 이 여백 기준 "페이지 콘텐츠 높이"에 맞춰야, break-inside:avoid로
+# 청크가 통째로 다음 페이지에 밀렸을 때 이전 페이지 하단에 남는 공백이 최소화된다
+# (예전에는 페이지 크기와 무관한 고정값 300px로 잘라, 청크 하나가 페이지의 절반도
+# 못 채운 채 다음 페이지로 밀리며 하단에 큰 공백이 남았다).
+_PDF_MARGIN_TOP_MM = 22
+_PDF_MARGIN_RIGHT_MM = 20
+_PDF_MARGIN_BOTTOM_MM = 25
+_PDF_MARGIN_LEFT_MM = 25
+_A4_HEIGHT_MM = 297
+_MM_TO_PX = 96 / 25.4
+_PAGE_CONTENT_H = (_A4_HEIGHT_MM - _PDF_MARGIN_TOP_MM - _PDF_MARGIN_BOTTOM_MM) * _MM_TO_PX
 
 # Mermaid 스크린샷 캡처 및 최종 PDF 래스터화 해상도 배율.
 # 1이면 CSS px = 물리 px(96dpi 상당)로 캡처되어 인쇄/확대 시 다이어그램과
@@ -86,30 +98,49 @@ def _nearest_safe_y(target: float, bands: list[tuple[float, float]], lo: float, 
         offset += 2.0
 
 
-def _chunk_boundaries(th: float, bands_raw: list[tuple[float, float]], chunk_h: int) -> list[float]:
-    """다이어그램 전체 높이(th)를 chunk_h 근처 간격으로 나누되, 도형/텍스트 중앙을 피해
-    자연스러운 여백에서 끊는 경계 목록을 반환한다.
+def _chunk_boundaries(
+    th: float, bands_raw: list[tuple[float, float]], page_h: float, page_offset: float
+) -> list[float]:
+    """다이어그램 전체 높이(th)를 실제 PDF 페이지 경계에 맞춰 나누되, 도형/텍스트
+    중앙을 피해 자연스러운 여백에서 끊는 경계 목록을 반환한다.
 
-    고정된 chunk_h 간격으로만 자르면 박스나 라벨이 정확히 경계에 걸렸을 때 그대로
-    반토막나고, 그 반쪽 청크가 PDF 페이지 경계에 걸리면 도형이 시각적으로 잘려
-    보인다. 각 경계를 목표 지점 주변에서 비어 있는(도형이 없는) y좌표로 옮겨
-    이를 피한다.
+    각 청크의 목표 크기를 고정값이 아니라 "이 페이지에 남은 공간"(첫 청크) ·
+    "페이지 한 장 분량"(이후 청크)으로 잡는다. page_offset은 다이어그램 시작
+    지점이 현재 페이지 안에서 이미 차지한 높이 — 이걸 무시하고 항상 다이어그램의
+    0지점부터 고정 간격으로 자르면, 청크 경계와 실제 페이지 경계가 어긋나 청크
+    하나가 페이지 절반도 못 채운 채 break-inside:avoid로 통째로 다음 페이지에
+    밀리고, 이전 페이지 하단에는 그만큼 빈 공백이 남는다. 각 경계는 목표 지점
+    주변에서 비어 있는(도형이 없는) y좌표로 옮겨 박스/라벨이 반토막나는 것도
+    피한다.
     """
-    if th <= chunk_h:
+    # 페이지 하단에 아주 조금(15% 미만)만 남았으면 그 자투리에 억지로 첫 청크를
+    # 욱여넣지 않는다 — 검색 구간이 너무 좁아 안전한 절단 지점을 못 찾고 도형
+    # 한가운데를 그대로 자를 위험이 커진다. 이 경우 다음 페이지 처음부터 채운다.
+    remaining = page_h - page_offset
+    if remaining < page_h * 0.15:
+        remaining = page_h
+    if th <= remaining:
         return [0.0, float(th)]
+
     bands = _merge_bands(bands_raw)
-    min_chunk = chunk_h * 0.4
-    max_chunk = chunk_h * 1.6
     boundaries = [0.0]
     y = 0.0
+    budget = remaining
     while y < th:
-        target = y + chunk_h
+        target = y + budget
         if target >= th:
             boundaries.append(float(th))
             break
-        safe = _nearest_safe_y(target, bands, y + min_chunk, min(y + max_chunk, th))
+        # 청크(래스터 이미지) 하나가 페이지 경계(target)를 넘으면 안 된다 — 넘으면
+        # break-inside:avoid가 있어도 이미지 자체가 다음 페이지로 밀리지 못하고
+        # 그 자리에서 그대로 잘려, 도형 한가운데가 끊기고 다음 페이지 대부분이
+        # 텅 비어버린다(실측으로 확인된 회귀). 그래서 안전 지점은 target 이전
+        # 방향으로만 찾는다 — 위쪽(budget*0.4)으로는 물러날 수 있어도 아래쪽
+        # (페이지 경계 너머)으로는 절대 넘어가지 않는다.
+        safe = _nearest_safe_y(target, bands, y + budget * 0.4, target)
         boundaries.append(safe)
         y = safe
+        budget = page_h
     return boundaries
 
 
@@ -242,7 +273,8 @@ async def convert_one(
 
                 sx, sy, tw, th = info["x"], info["y"], info["w"], info["h"]
                 bands = [(b[0], b[1]) for b in info.get("bands", [])]
-                boundaries = _chunk_boundaries(th, bands, _CHUNK_H)
+                page_offset = sy % _PAGE_CONTENT_H
+                boundaries = _chunk_boundaries(th, bands, _PAGE_CONTENT_H, page_offset)
                 chunks: list[tuple[str, int, int]] = []
 
                 for ci in range(len(boundaries) - 1):
@@ -292,7 +324,12 @@ async def convert_one(
         await page.pdf(
             path=str(out_path),
             format="A4",
-            margin={"top": "22mm", "right": "20mm", "bottom": "25mm", "left": "25mm"},
+            margin={
+                "top": f"{_PDF_MARGIN_TOP_MM}mm",
+                "right": f"{_PDF_MARGIN_RIGHT_MM}mm",
+                "bottom": f"{_PDF_MARGIN_BOTTOM_MM}mm",
+                "left": f"{_PDF_MARGIN_LEFT_MM}mm",
+            },
             print_background=True,
         )
         await page.close()
