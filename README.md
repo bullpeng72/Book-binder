@@ -459,122 +459,48 @@ ruff check src tests
 
 ### 0.3.1 (2026-07-28)
 
-- **feat**: `build html`/`build pdf`에 `--color` 옵션 추가(신규 `theme.py`).
-  사이드바 배경·제목·표 헤더·링크 강조색(`--primary`/`--primary-light`/
-  `--accent`) 3개만 바꾸는 "메뉴 색 고르기" 수준의 프리셋 7종(`purple`(기본)/
-  `blue`/`green`/`teal`/`red`/`orange`/`gray`)을 제공한다. 전부 사이드바의
-  흰 글자와 대비가 충분한 톤으로만 골라, 임의 hex를 받았을 때 밝은 색을
-  고르면 글자가 안 보이는 사고를 원천 차단했다. `book.yaml`의 `color:`로
-  코퍼스 기본값을 정해두고 CLI `--color`로 그때그때 오버라이드할 수 있다
-  (`--title`/`--language`와 동일한 오버라이드 우선순위). PDF는 기존
-  `custom_css` 파이프라인에 얹는 방식이라 별도 배관 없이 HTML과 동일한
-  프리셋을 공유한다.
-- **fix**: 서브그래프(subgraph) 제목이 길어 자동 줄바꿈되면 둘째 줄이 그
-  서브그래프의 첫 자식 노드 박스와 겹쳐 보이던 문제 수정. 노드 라벨은
-  `foreignObject`가 실측 높이만큼 스스로 커지지만, Mermaid는 서브그래프
-  제목 위에 예약하는 세로 여백을 "제목은 한 줄"이라는 전제로 고정 계산해
-  실제 렌더 높이를 못 따라가는 게 원인이었다(실측: 2줄 제목의
-  `foreignObject`가 38px인데 첫 자식 노드 상단은 25px 지점에서 시작).
-  `subgraph X["..."]` 줄의 제목 라벨은 자동 줄바꿈 대상에서 제외해, 길면
-  클러스터 박스가 가로로만 넓어지도록 함(`mermaid_wrap.py`).
-- **fix**: 긴 노드/엣지 라벨을 자동 줄바꿈할 때 폭 제한에 걸리면 무조건
-  문자 단위로 잘라 `ChapterDrafterAgen`/`t`, `knowledge/store.js`/`on`,
-  `query_with_scores(`/`)`처럼 단어나 괄호 쌍 중간이 갈라져 보기 흉했던
-  문제 수정. `/`, `_`, `.`, `-` 뒤나 camelCase 전환 지점(소문자→대문자)
-  같은 자연 경계에서 우선 접도록 해 `ChapterDrafter`/`Agent`,
-  `knowledge/store.`/`json`, `query_with_`/`scores()`처럼 의미 단위가
-  보존되게 함. 그런 경계가 아예 없는 텍스트(긴 한글 연속 등)만 기존처럼
-  문자 단위로 분할한다(`mermaid_wrap.py`).
-- **fix**: 웹 편집기(`edit`) 미리보기에서 Mermaid 다이어그램을 렌더링할 때
-  HTML/PDF 빌드에는 이미 적용된 "Noto Sans KR 강제 지정 + line-height
-  고정" 설정이 빠져 있어, 서브그래프 라벨이 자기 배경 박스 폭을 넘어서고
-  좁은 미리보기 창에서 그 넘친 부분이 잘려 보이던 문제 수정. 빌드에 쓰는
-  것과 동일한 폰트 CSS(`mermaid_font_face_css()`/`mermaid_label_css()`)를
-  에디터 페이지에도 주입하고, `mermaid.initialize()`에 같은
-  `themeVariables.fontFamily`를 지정해 빌드 시점 라벨 크기 계산과 에디터
-  미리보기 렌더링이 어긋나지 않게 함(`editor/server.py`,
-  `templates/editor/index.html`, `templates/editor/editor.js`).
-- 회귀 테스트 13건 추가(mermaid_wrap 5건 + theme 8건, 총 37개).
+- **feat**: `build html`/`build pdf`에 `--color` 옵션 추가 — 사이드바/제목
+  강조색 프리셋 7종(`purple`(기본)/`blue`/`green`/`teal`/`red`/`orange`/
+  `gray`). `book.yaml`의 `color:`로 기본값을 정하고 CLI가 우선한다.
+- **fix**: Mermaid 서브그래프 제목이 길어 줄바꿈되면 첫 자식 노드와 겹쳐
+  보이던 문제 수정.
+- **fix**: 긴 노드/엣지 라벨 자동 줄바꿈 시 단어·괄호 중간이 잘리던 문제
+  수정 — `/`, `_`, `.`, camelCase 같은 자연 경계에서 접도록 개선.
+- **fix**: 웹 편집기 미리보기의 Mermaid 폰트가 실제 빌드와 달라 라벨이
+  박스 밖으로 넘쳐 잘려 보이던 문제 수정.
+- 회귀 테스트 13건 추가(총 37개).
 
 ### 0.3.0 (2026-07-27)
 
-- **feat**: Mermaid 다이어그램을 HTML 빌드 시점에 Playwright/Chromium으로
-  정적 SVG로 사전 렌더링해 인라인 삽입(`mermaid_prerender.py`, 신규 모듈).
-  성공하면 열람 시 CDN `mermaid.js`(3.3MB)가 전혀 필요 없어 완전한 오프라인
-  단일 파일이 되고, 다이어그램이 없거나 Playwright가 없으면 자동으로
-  CDN 태그 자체를 생략(전자)하거나 기존 CDN 클라이언트 렌더링으로
-  폴백(후자)한다. 빌드 시점 렌더링도 `templates/vendor/mermaid.min.js`를
-  번들해 네트워크 없이 동작한다.
-- **feat**: Mermaid 노드/엣지 라벨 중 긴 텍스트를 자동 줄바꿈(`mermaid_wrap.py`,
-  신규 모듈). 다이아몬드(결정) 노드는 라벨 폭만큼 도형이 커지는데, 긴 한글
-  라벨 한 줄이 다이아몬드의 뾰족한 모서리 밖으로 삐져나오던 문제를 막는다.
-  `md_to_html()`이 mermaid 코드 블록을 추출하는 시점에 한 번만 적용해, HTML
-  사전 렌더링과 PDF 변환(클라이언트 mermaid.js) 두 경로 모두 동일하게
-  줄바꿈된 결과를 쓴다.
-- **fix**: HTML 도서 열람 시 다이어그램 안 한글 라벨이 두 번째 줄부터 잘려
-  보이던 문제 수정. 원인은 두 겹이었다 — ① `body { line-height: 1.8 }`가
-  Mermaid SVG의 `<foreignObject>` 라벨 텍스트까지 상속돼 실제 렌더링 높이가
-  Mermaid가 계산해 둔 도형 크기보다 커졌고, ② Noto Sans KR처럼 세로 메트릭이
-  큰 폰트에서는 `line-height: normal`이어도 Mermaid의 자체 높이 측정치와
-  실제 브라우저 렌더링 높이가 20~30% 어긋났다. 라벨 텍스트의 `line-height`를
-  고정 숫자값(1.2)으로 못박아 빌드 시점 측정과 표시 시점 렌더링을 일치시키고,
-  `foreignObject`에 `overflow: visible`을 둬 그래도 남는 서브픽셀 오차가
-  텍스트를 자르지 않고 살짝 넘치는 선에서 그치게 함(`mermaid_prerender.py`의
-  신규 `mermaid_label_css()`를 빌드용 렌더 페이지·최종 HTML·PDF 렌더 페이지
-  세 곳에 동일하게 주입). Noto Sans KR 폰트를 base64로 번들해 오프라인
-  환경에서도 항상 같은 폰트로 렌더링되게 함(`templates/vendor/`).
-- **fix**: `html_book.js` 최상단의 `mermaid.initialize(...)`가 톱레벨에서
-  무방비로 실행돼, CDN이 막혀 `mermaid`가 `undefined`면 그 예외가 같은
-  `<script>` 블록의 나머지(코드 하이라이트·TOC 활성화·전문 검색)까지
-  통째로 실행되지 못하게 막던 문제 수정 — `mermaid`/`hljs` 전역 참조를
-  존재 확인 + `try/catch`로 감싸 CDN 실패가 다른 기능에 전파되지 않게 함.
-- **fix**: 편집기(`edit`)에서 이미지를 추가·교체한 뒤 저장하면 `src`에
-  파일 경로가 그대로 남아, 최초 빌드본과 달리 편집본이 이미지 폴더 없이는
-  열리지 않던 문제 수정. `imgembed.py`에 base64 인코딩 로직을 공용
-  유틸로 뽑아 `html_book.py`(최초 빌드)·`image_editor.py`(이미지 교체)·
-  `html_editor.py`(이미지 추가)가 모두 공유하도록 해, 편집 후 저장한
-  HTML도 항상 완전한 단일 파일로 유지되도록 함.
-- **fix**: PDF 변환 시 Mermaid 다이어그램이 실제보다 과도하게 확대되어 여러
-  페이지에 걸쳐 표시되던 문제, 그 앞뒤로 빈 페이지가 삽입되던 문제 수정.
-  `pdf_override.css`의 `.mermaid svg { max-width:100% !important }`가
-  Mermaid 자신의 자연 크기 힌트(인라인 `style="max-width: Npx"`)를 덮어써
-  `width="100%"` 속성이 그대로 적용되는 게 근본 원인이었다 — 다이어그램을
-  `viewBox`에서 읽은 자연 크기 기준으로 측정해, 페이지 폭을 넘을 때만
-  축소하도록 수정.
-- **fix**: PDF 1차 렌더링 컨텍스트에 뷰포트 폭을 지정하지 않아 기본값
-  (1280px)으로 레이아웃된 뒤 뒤늦게 좁히면서 텍스트가 재줄바꿈되어 문서
-  높이가 측정값을 벗어나던 문제 수정 — 렌더링 시작 시점부터 PDF 목표 폭을
-  고정.
-- **fix**: PDF 변환 시 페이지 넘김 지점이 다이어그램 도형(다이아몬드/박스)
-  한가운데를 가로질러 잘려 보이던 문제 수정. 청크 분할 시 "안전한(도형이
-  없는) 절단 지점"을 찾을 때 화살표/연결선(`<path>`)까지 "점유된 구간"에
-  포함시킨 게 원인이었다 — 연결선은 정의상 노드 사이 여백 전체를 잇는
-  선이라, 촘촘히 연결된 플로우차트에서는 이를 포함하는 순간 진짜 빈 공간이
-  거의 사라져 탐색이 실패하고 도형 내부의 좌표를 그대로 절단 지점으로
-  반환하게 됐다. 절단 지점 탐색 대상에서 `path`를 제외해 연결선 중간에서만
-  끊기도록 수정(`pdf_book.py`) — 화살표가 페이지 경계에서 끊기는 건 시각적으로
-  자연스럽다.
-- **fix**: PDF 인쇄 스타일 개선 — 화면용 폰트 크기(16px 루트 등)를 인쇄
-  비율에 맞춰 축소, 제목/문단/표가 페이지 경계 중간에서 잘리지 않도록
-  break-inside 보호 추가(`pdf_override.css`).
-- 회귀 테스트 7건 추가(mermaid_wrap, 총 24개).
+- **feat**: Mermaid 다이어그램을 빌드 시점에 정적 SVG로 사전 렌더링 —
+  완전한 오프라인 단일 HTML 지원.
+- **feat**: 긴 Mermaid 노드/엣지 라벨 자동 줄바꿈(도형 밖으로 삐져나오는
+  문제 방지).
+- **fix**: 한글 라벨이 두 번째 줄부터 잘려 보이던 문제 수정(line-height
+  고정 + Noto Sans KR 폰트 번들).
+- **fix**: CDN 로드 실패 시 검색·목차 등 나머지 기능까지 죽던 문제 수정.
+- **fix**: 편집기에서 이미지 추가/교체 후 저장한 HTML이 이미지 폴더에
+  의존하던 문제 수정.
+- **fix**: PDF 변환 시 Mermaid 다이어그램 과대 확대·빈 페이지 삽입 문제
+  수정.
+- **fix**: PDF 렌더링 뷰포트 폭을 고정해 재줄바꿈으로 인한 높이 오차 수정.
+- **fix**: PDF 페이지 넘김이 다이어그램 도형 한가운데를 가로지르던 문제
+  수정.
+- **fix**: PDF 인쇄 스타일 개선(폰트 크기, 페이지 경계 보호).
+- 회귀 테스트 7건 추가(총 24개).
 
 ### 0.2.0 (2026-07-27)
 
 - **feat**: `mdbook-binder --version` 옵션 추가.
-- **fix**: `__init__.py`의 버전/패키지명이 `pyproject.toml`과 어긋난 것 수정.
-- **chore**: `pyproject.toml` 버전을 0.2.0으로 갱신, ruff
-  `per-file-ignores`에 `S112` 추가.
+- **fix**: 버전/패키지명이 `pyproject.toml`과 어긋난 문제 수정.
 
 ### 0.1.0 (2026-07-26)
 
-- **rename**: CLI/패키지명을 `book-binder`에서 `mdbook-binder`로 변경.
-- **fix**: wheel/sdist 빌드 시 `templates/` 디렉토리가 누락되는 문제 수정.
-- **feat**: `book.yaml`의 `custom_css` 지원 추가, Mermaid 렌더링 안정성 개선.
-- **fix**: PDF 변환 시 다이어그램·이미지 해상도가 저하되는 문제 개선.
-- **docs**: README 전면 재작성, LICENSE 추가.
-- **feat**: 초기 구현 — 마크다운 코퍼스를 HTML/PDF 도서로 변환·편집하는
-  애플리케이션.
+- **rename**: `book-binder` → `mdbook-binder`.
+- **fix**: wheel/sdist 빌드 시 `templates/` 디렉토리 누락 문제 수정.
+- **feat**: `book.yaml`의 `custom_css` 지원, Mermaid 렌더링 안정성 개선.
+- **fix**: PDF 변환 시 다이어그램·이미지 해상도 저하 문제 개선.
+- **feat**: 초기 구현 — 마크다운 코퍼스를 HTML/PDF 도서로 변환·편집.
 
 ---
 
