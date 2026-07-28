@@ -76,6 +76,7 @@ class BookConfig:
     tip_markers: list[str] = field(default_factory=lambda: list(DEFAULT_TIP_MARKERS))
     section_id_overrides: dict[str, str] = field(default_factory=dict)
     custom_css: str | None = None
+    color: str | None = None
 
     @classmethod
     def load(cls, root: Path) -> BookConfig | None:
@@ -103,6 +104,7 @@ class BookConfig:
             tip_markers=list(callouts.get("tip_markers", DEFAULT_TIP_MARKERS)),
             section_id_overrides=data.get("section_id_overrides", {}),
             custom_css=data.get("custom_css"),
+            color=data.get("color"),
         )
 
     def locale(self) -> dict[str, str]:

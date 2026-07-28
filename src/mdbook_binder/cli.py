@@ -1,8 +1,8 @@
 """mdbook-binder CLI.
 
     mdbook-binder check      <root>                                     빌드 전 사전 점검
-    mdbook-binder build html <root> [--out FILE] [--title TITLE] [--language ko|en]
-    mdbook-binder build pdf  <root> [--merge [이름]] [--out-dir ...]
+    mdbook-binder build html <root> [--out FILE] [--title TITLE] [--language ko|en] [--color NAME]
+    mdbook-binder build pdf  <root> [--merge [이름]] [--out-dir ...] [--color NAME]
     mdbook-binder edit       <html>  [--port 5757] [--out ...] [--no-browser]
 """
 
@@ -14,6 +14,10 @@ import click
 
 from mdbook_binder import __version__
 from mdbook_binder.manifest import BookConfig
+from mdbook_binder.theme import THEMES
+
+_COLOR_CHOICE = click.Choice(sorted(THEMES), case_sensitive=False)
+_COLOR_HELP = "사이드바/제목 강조색 테마 (기본: book.yaml의 color 또는 purple)"
 
 
 @click.group()
@@ -47,11 +51,13 @@ def build() -> None:
 @click.option("--out", "out_path", type=click.Path(path_type=Path), default=None, help="출력 HTML 경로")
 @click.option("--title", "title_override", default=None, help="book.yaml의 title을 오버라이드")
 @click.option("--language", "language_override", default=None, help="book.yaml의 language를 오버라이드 (ko/en)")
+@click.option("--color", "color_override", type=_COLOR_CHOICE, default=None, help=_COLOR_HELP)
 def build_html_cmd(
     root: Path,
     out_path: Path | None,
     title_override: str | None,
     language_override: str | None,
+    color_override: str | None,
 ) -> None:
     """ROOT 아래 마크다운 코퍼스를 검색 가능한 단일 HTML 도서로 빌드한다."""
     from mdbook_binder.html_book import build_html
@@ -64,6 +70,7 @@ def build_html_cmd(
         out_path=out_path,
         title_override=title_override,
         language_override=language_override,
+        color_override=color_override,
     )
 
 
@@ -73,13 +80,16 @@ def build_html_cmd(
               help="지정한 파일들을 하나의 PDF로 병합 (값 생략 시 full_book)")
 @click.option("--out-dir", "out_dir", type=click.Path(path_type=Path), default=None,
               help="PDF 출력 디렉토리 (기본: ROOT/pdf)")
-def build_pdf_cmd(root: Path, merge_out: str | None, out_dir: Path | None) -> None:
+@click.option("--color", "color_override", type=_COLOR_CHOICE, default=None, help=_COLOR_HELP)
+def build_pdf_cmd(
+    root: Path, merge_out: str | None, out_dir: Path | None, color_override: str | None
+) -> None:
     """ROOT 아래 마크다운을 챕터별 PDF(또는 --merge 시 단권)로 빌드한다."""
     from mdbook_binder.pdf_book import build_pdf
 
     print(f"\U0001f4da Building PDF from {root} ...")
     try:
-        build_pdf(root, merge_name=merge_out, out_dir=out_dir)
+        build_pdf(root, merge_name=merge_out, out_dir=out_dir, color_override=color_override)
     except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
 

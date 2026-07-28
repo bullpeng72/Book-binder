@@ -24,7 +24,14 @@ let _galleryPaths = [];             // [{path, label}] for current gallery/recom
 // ------------------------------------------------------------------ //
 document.addEventListener('DOMContentLoaded', async () => {
   if (typeof mermaid !== 'undefined') {
-    mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+    // HTML/PDF 빌드(mermaid_prerender.py)와 같은 폰트를 지정한다 — 지정하지 않으면
+    // Mermaid 기본 폰트("trebuchet ms" 등, 한글 글리프 없음)로 라벨 크기를 계산해
+    // 놓고 브라우저는 폴백 한글 폰트로 그리면서 실제 글자 폭이 계산치보다 커져,
+    // 서브그래프 라벨이 자기 박스 밖으로 넘치고 좁은 미리보기에서 잘려 보인다.
+    mermaid.initialize({
+      startOnLoad: false, theme: 'default', securityLevel: 'loose',
+      themeVariables: { fontFamily: '"Noto Sans KR", sans-serif' },
+    });
   }
   await loadLecture();
   await loadElements();

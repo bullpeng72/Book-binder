@@ -20,6 +20,7 @@ from pathlib import Path
 from mdbook_binder.manifest import BookConfig, ChapterFile
 from mdbook_binder.mermaid_prerender import mermaid_font_face_css, mermaid_label_css
 from mdbook_binder.render import md_to_html, tip_start_pattern
+from mdbook_binder.theme import theme_css
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -380,6 +381,7 @@ def build_pdf(
     *,
     merge_name: str | None = None,
     out_dir: Path | None = None,
+    color_override: str | None = None,
 ) -> Path | list[Path]:
     """ROOT의 마크다운 코퍼스를 PDF로 빌드한다.
 
@@ -399,6 +401,9 @@ def build_pdf(
 
     tip_pattern = tip_start_pattern(config.tip_markers if config else [])
     custom_css = config.load_custom_css(root) if config else ""
+    color = color_override or (config.color if config else None)
+    if color:
+        custom_css = f"{theme_css(color)}\n\n{custom_css}"
     pdf_dir = out_dir or (root / "pdf")
 
     if merge_name is not None:

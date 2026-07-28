@@ -18,6 +18,10 @@
   <!-- Mermaid (diagram preview & lightbox) -->
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 
+  <!-- HTML/PDF 빌드(mermaid_prerender.py)와 동일한 폰트·줄높이로 렌더링해, 여기서
+       미리 본 다이어그램의 라벨 크기가 실제 빌드 결과와 어긋나지 않게 한다. -->
+  <style>{{ mermaid_font_css }}</style>
+
   <!-- Editor styles -->
   <link rel="stylesheet" href="/static/editor.css">
 

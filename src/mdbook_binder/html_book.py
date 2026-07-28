@@ -20,6 +20,7 @@ from mdbook_binder.imgembed import image_to_data_uri
 from mdbook_binder.manifest import LOCALE_STRINGS, BookConfig, resolve
 from mdbook_binder.mermaid_prerender import mermaid_font_face_css, mermaid_label_css, prerender_mermaid
 from mdbook_binder.render import demote_headings, extract_h1_text, md_to_html, tip_start_pattern
+from mdbook_binder.theme import theme_css
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -87,6 +88,7 @@ def build_html(
     out_path: Path | None = None,
     title_override: str | None = None,
     language_override: str | None = None,
+    color_override: str | None = None,
 ) -> Path:
     if config is None:
         config = BookConfig.load(root)
@@ -127,7 +129,10 @@ def build_html(
 
     title = title_override or (config.title if config else None) or root.name
 
+    color = color_override or (config.color if config else None)
     css = (_TEMPLATES_DIR / "html_book.css").read_text(encoding="utf-8")
+    if color:
+        css += f"\n\n{theme_css(color)}"
     if config and (custom_css := config.load_custom_css(root)):
         css += f"\n\n/* ── custom_css (book.yaml) ── */\n{custom_css}"
     js = (_TEMPLATES_DIR / "html_book.js").read_text(encoding="utf-8")

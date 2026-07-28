@@ -20,6 +20,7 @@ from flask import Flask, jsonify, request, send_file
 
 from mdbook_binder.editor.html_editor import BookHTMLEditor
 from mdbook_binder.editor.image_editor import ImageEditor
+from mdbook_binder.mermaid_prerender import mermaid_font_face_css, mermaid_label_css
 
 logger = logging.getLogger("mdbook_binder.editor")
 
@@ -55,7 +56,10 @@ def create_app(html_path: str, output_path: str | None = None) -> Flask:
     def index():
         filename = Path(html_path).name
         content = _INDEX_TEMPLATE.read_text(encoding="utf-8")
-        return content.replace("{{ filename }}", filename)
+        font_css = f"{mermaid_font_face_css()}\n{mermaid_label_css()}"
+        return content.replace("{{ filename }}", filename).replace(
+            "{{ mermaid_font_css }}", font_css
+        )
 
     # ------------------------------------------------------------------ #
     #  Book meta

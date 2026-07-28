@@ -105,6 +105,7 @@ MDBook-binder/
 │   ├── imgembed.py           # 이미지 → base64 data URI 인코딩 공용 유틸
 │   ├── mermaid_prerender.py  # Mermaid 빌드 타임 정적 SVG 사전 렌더링 (Playwright)
 │   ├── mermaid_wrap.py       # Mermaid 노드/엣지 라벨 자동 줄바꿈
+│   ├── theme.py              # --color 색상 테마 프리셋 (사이드바/제목 강조색)
 │   ├── pdf_book.py           # PDF 빌더 (청크 캡처 + 개별/병합)
 │   ├── check.py              # 빌드 전 사전 점검
 │   ├── cli.py                # mdbook-binder CLI (check/build html/build pdf/edit)
@@ -124,7 +125,8 @@ MDBook-binder/
     ├── test_check.py             # 사전 점검 (4건)
     ├── test_editor.py            # 이미지 추가/교체 후 base64 임베드 (2건)
     ├── test_mermaid_prerender.py # Mermaid 사전 렌더링 성공/폴백 (3건)
-    └── test_mermaid_wrap.py      # 라벨 자동 줄바꿈 (7건)
+    ├── test_mermaid_wrap.py      # 라벨 자동 줄바꿈 (12건)
+    └── test_theme.py             # 색상 테마 프리셋 + book.yaml/--color 연동 (8건)
 ```
 
 ---
@@ -170,6 +172,10 @@ custom_css: custom.css       # 코퍼스 루트 기준 상대 경로 (선택)
                               # 코퍼스별 raw-HTML 다이어그램(@@HTML_START@@ 블록)이
                               # 쓰는 커스텀 클래스는 범용 템플릿에 넣을 수 없으므로,
                               # 여기 지정한 CSS 파일 내용을 HTML/PDF 빌드 모두에 그대로 얹는다.
+
+color: green                 # 사이드바/제목 강조색 테마 (선택, 기본 purple)
+                              # purple/blue/green/teal/red/orange/gray 중 하나.
+                              # CLI --color를 주면 이 값보다 우선한다.
 ```
 
 ### 마크다운 저작 규칙
@@ -288,7 +294,7 @@ mdbook-binder check ~/Docs/my-book
 ### HTML 도서 빌드
 
 ```bash
-mdbook-binder build html <코퍼스_루트> [--out out.html] [--title ...] [--language ko|en]
+mdbook-binder build html <코퍼스_루트> [--out out.html] [--title ...] [--language ko|en] [--color NAME]
 ```
 
 - 이미지를 base64 data URI로 인라인 임베드 — 이미지 폴더 없이도 단일 파일로
@@ -301,6 +307,8 @@ mdbook-binder build html <코퍼스_루트> [--out out.html] [--title ...] [--la
 - 서로 다른 Part의 챕터 제목이 우연히 같아도(예: "개요") 섹션 id 충돌을
   자동으로 회피한다.
 - 빌드 끝에 누락된 이미지 참조를 한 번에 모아 요약 출력한다.
+- `--color`로 사이드바/제목 강조색 테마를 고른다(`purple`(기본)/`blue`/
+  `green`/`teal`/`red`/`orange`/`gray`) — book.yaml의 `color:`보다 우선한다.
 
 ### PDF 빌드 — 개별/병합
 
@@ -308,6 +316,7 @@ mdbook-binder build html <코퍼스_루트> [--out out.html] [--title ...] [--la
 mdbook-binder build pdf <코퍼스_루트>                        # 챕터별 개별 A4 PDF
 mdbook-binder build pdf <코퍼스_루트> --merge [이름]          # 단권으로 병합
 mdbook-binder build pdf <코퍼스_루트> --out-dir <디렉토리>     # 출력 위치 지정
+mdbook-binder build pdf <코퍼스_루트> --color green           # 색상 테마 지정(HTML과 동일한 프리셋)
 ```
 
 각 챕터를 Playwright/Chromium으로 독립 렌더링한다. 긴 Mermaid 다이어그램은
@@ -396,7 +405,7 @@ mdbook-binder build pdf ~/Docs/my-book --merge      # 4. (선택) 단권 PDF
 
 ```bash
 pip install -e ".[dev,pdf,editor]"
-pytest tests/ -q      # 24개 테스트 (manifest 5 + html_book 3 + check 4 + editor 2 + mermaid_prerender 3 + mermaid_wrap 7)
+pytest tests/ -q      # 37개 테스트 (manifest 5 + html_book 3 + check 4 + editor 2 + mermaid_prerender 3 + mermaid_wrap 12 + theme 8)
 ruff check src tests
 ```
 
@@ -447,6 +456,45 @@ ruff check src tests
 ---
 
 ## 변경이력
+
+### 0.3.1 (2026-07-28)
+
+- **feat**: `build html`/`build pdf`에 `--color` 옵션 추가(신규 `theme.py`).
+  사이드바 배경·제목·표 헤더·링크 강조색(`--primary`/`--primary-light`/
+  `--accent`) 3개만 바꾸는 "메뉴 색 고르기" 수준의 프리셋 7종(`purple`(기본)/
+  `blue`/`green`/`teal`/`red`/`orange`/`gray`)을 제공한다. 전부 사이드바의
+  흰 글자와 대비가 충분한 톤으로만 골라, 임의 hex를 받았을 때 밝은 색을
+  고르면 글자가 안 보이는 사고를 원천 차단했다. `book.yaml`의 `color:`로
+  코퍼스 기본값을 정해두고 CLI `--color`로 그때그때 오버라이드할 수 있다
+  (`--title`/`--language`와 동일한 오버라이드 우선순위). PDF는 기존
+  `custom_css` 파이프라인에 얹는 방식이라 별도 배관 없이 HTML과 동일한
+  프리셋을 공유한다.
+- **fix**: 서브그래프(subgraph) 제목이 길어 자동 줄바꿈되면 둘째 줄이 그
+  서브그래프의 첫 자식 노드 박스와 겹쳐 보이던 문제 수정. 노드 라벨은
+  `foreignObject`가 실측 높이만큼 스스로 커지지만, Mermaid는 서브그래프
+  제목 위에 예약하는 세로 여백을 "제목은 한 줄"이라는 전제로 고정 계산해
+  실제 렌더 높이를 못 따라가는 게 원인이었다(실측: 2줄 제목의
+  `foreignObject`가 38px인데 첫 자식 노드 상단은 25px 지점에서 시작).
+  `subgraph X["..."]` 줄의 제목 라벨은 자동 줄바꿈 대상에서 제외해, 길면
+  클러스터 박스가 가로로만 넓어지도록 함(`mermaid_wrap.py`).
+- **fix**: 긴 노드/엣지 라벨을 자동 줄바꿈할 때 폭 제한에 걸리면 무조건
+  문자 단위로 잘라 `ChapterDrafterAgen`/`t`, `knowledge/store.js`/`on`,
+  `query_with_scores(`/`)`처럼 단어나 괄호 쌍 중간이 갈라져 보기 흉했던
+  문제 수정. `/`, `_`, `.`, `-` 뒤나 camelCase 전환 지점(소문자→대문자)
+  같은 자연 경계에서 우선 접도록 해 `ChapterDrafter`/`Agent`,
+  `knowledge/store.`/`json`, `query_with_`/`scores()`처럼 의미 단위가
+  보존되게 함. 그런 경계가 아예 없는 텍스트(긴 한글 연속 등)만 기존처럼
+  문자 단위로 분할한다(`mermaid_wrap.py`).
+- **fix**: 웹 편집기(`edit`) 미리보기에서 Mermaid 다이어그램을 렌더링할 때
+  HTML/PDF 빌드에는 이미 적용된 "Noto Sans KR 강제 지정 + line-height
+  고정" 설정이 빠져 있어, 서브그래프 라벨이 자기 배경 박스 폭을 넘어서고
+  좁은 미리보기 창에서 그 넘친 부분이 잘려 보이던 문제 수정. 빌드에 쓰는
+  것과 동일한 폰트 CSS(`mermaid_font_face_css()`/`mermaid_label_css()`)를
+  에디터 페이지에도 주입하고, `mermaid.initialize()`에 같은
+  `themeVariables.fontFamily`를 지정해 빌드 시점 라벨 크기 계산과 에디터
+  미리보기 렌더링이 어긋나지 않게 함(`editor/server.py`,
+  `templates/editor/index.html`, `templates/editor/editor.js`).
+- 회귀 테스트 13건 추가(mermaid_wrap 5건 + theme 8건, 총 37개).
 
 ### 0.3.0 (2026-07-27)
 
