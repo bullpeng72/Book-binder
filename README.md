@@ -444,10 +444,13 @@ ruff check src tests
   그 외 비-Part 디렉토리는 3순위 자연정렬로만 잡힌다 — 필요하면 `book.yaml`의
   `order.files`로 명시하는 게 안전하다.
 - **`pdf_book.py`/`editor/`는 회귀 테스트가 일부만 있다**: 이미지 추가/교체
-  후 base64 임베드가 유지되는지는 `test_editor.py`로 고정돼 있지만,
-  Flask API 엔드포인트·섹션 CRUD·다이어그램 편집·PDF 렌더링 자체는 실제
-  코퍼스로 수동 검증만 마쳤을 뿐 `manifest.py`/`html_book.py`/`check.py`만큼
-  pytest로 고정돼 있지는 않다.
+  후 base64 임베드가 유지되는지는 `test_editor.py`로, 페이지 경계 청크 분할
+  순수 함수(`_merge_bands`/`_nearest_safe_y`/`_chunk_boundaries` 등)는
+  `test_pdf_book.py`로, `/api/images/serve` 경로 화이트리스트는
+  `test_server.py`로 고정돼 있다. 다만 Playwright를 실제로 구동하는 PDF
+  렌더링 자체와 섹션 CRUD·다이어그램 편집 API는 실제 코퍼스로 수동 검증만
+  마쳤을 뿐 `manifest.py`/`html_book.py`/`check.py`만큼 pytest로 고정돼
+  있지는 않다.
 - **PyPI 배포와 `Unreleased` 변경이력 사이에 시차가 있다**: PyPI의
   `mdbook-binder`는 최신 태그 버전(`pyproject.toml` 기준)까지만 반영되므로,
   이 문서의 [변경이력](#변경이력) `Unreleased` 항목은 아직 PyPI에 올라가지

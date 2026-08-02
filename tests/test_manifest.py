@@ -1,5 +1,6 @@
 """manifest.resolve()의 3단계 우선순위 검증."""
 
+import unicodedata
 from pathlib import Path
 
 from mdbook_binder.manifest import BookConfig, OrderConfig, resolve
@@ -57,6 +58,22 @@ def test_back_matter_and_appendix_ordered_after_parts(tmp_path: Path):
 
     names = [c.path.name for c in chapters]
     assert names == ["00_intro.md", "Chapter_01_x.md", "99_afterword.md", "A_glossary.md"]
+
+
+def test_exclude_matches_despite_nfc_nfd_mismatch(tmp_path: Path):
+    """macOS(APFS)는 파일명을 NFD로 저장하지만 book.yaml은 보통 NFC로 작성된다 —
+    exclude 패턴이 시각적으로 동일한 파일명을 정규화형 차이로 놓치면 안 된다."""
+    nfc_name = unicodedata.normalize("NFC", "00_기획안.md")
+    nfd_name = unicodedata.normalize("NFD", "00_기획안.md")
+    assert nfc_name != nfd_name  # 바이트열은 실제로 다름을 전제로 검증
+
+    _write(tmp_path, nfd_name)  # 디스크엔 NFD로 존재(macOS 기본 동작 재현)
+    _write(tmp_path, "Part_I_only/Chapter_01_x.md")
+    config = BookConfig(exclude=[nfc_name])  # book.yaml엔 NFC로 작성
+
+    chapters = resolve(tmp_path, config)
+
+    assert [c.path.name for c in chapters] == ["Chapter_01_x.md"]
 
 
 def test_toc_manifest_auto_detected_without_config(tmp_path: Path):

@@ -331,7 +331,10 @@ def create_app(html_path: str, output_path: str | None = None) -> Flask:
 
         img_path = Path(path_str).resolve()
         allowed_roots = [Path(html_path).parent.resolve(), upload_dir.resolve()]
-        if not any(str(img_path).startswith(str(r)) for r in allowed_roots):
+        # 문자열 startswith 비교는 "/foo/book"과 "/foo/book_evil" 같은 형제
+        # 디렉토리를 구분 못 해 화이트리스트를 우회당한다 — 경로 구성요소
+        # 단위로 비교하는 is_relative_to()를 써야 한다.
+        if not any(img_path.is_relative_to(r) for r in allowed_roots):
             return "Forbidden", 403
         if not img_path.exists():
             return "Not found", 404

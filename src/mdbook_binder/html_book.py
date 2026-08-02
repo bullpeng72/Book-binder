@@ -18,7 +18,11 @@ from pathlib import Path
 
 from mdbook_binder.imgembed import image_to_data_uri
 from mdbook_binder.manifest import LOCALE_STRINGS, BookConfig, resolve
-from mdbook_binder.mermaid_prerender import mermaid_font_face_css, mermaid_label_css, prerender_mermaid
+from mdbook_binder.mermaid_prerender import (
+    mermaid_font_face_css,
+    mermaid_label_css,
+    prerender_mermaid,
+)
 from mdbook_binder.render import demote_headings, extract_h1_text, md_to_html, tip_start_pattern
 from mdbook_binder.theme import theme_css
 
@@ -35,7 +39,7 @@ def _slugify(text: str) -> str:
 
 
 def _section_id(fpath: Path, html_body: str, config: BookConfig | None) -> str:
-    if config and (override := config.section_id_overrides.get(fpath.stem)):
+    if config and (override := config.section_id_overrides.get(unicodedata.normalize("NFC", fpath.stem))):
         return override
     title = extract_h1_text(html_body)
     return _slugify(title or fpath.stem)

@@ -102,7 +102,12 @@ class BookConfig:
             exclude=list(data.get("exclude", DEFAULT_EXCLUDE)),
             order=order,
             tip_markers=list(callouts.get("tip_markers", DEFAULT_TIP_MARKERS)),
-            section_id_overrides=data.get("section_id_overrides", {}),
+            # 조회 시 fpath.stem도 NFC로 맞춰 비교한다(_section_id 참고) —
+            # 여기서 키를 NFC로 정규화해둬야 그 비교가 성립한다.
+            section_id_overrides={
+                unicodedata.normalize("NFC", k): v
+                for k, v in (data.get("section_id_overrides", {}) or {}).items()
+            },
             custom_css=data.get("custom_css"),
             color=data.get("color"),
         )
@@ -134,8 +139,12 @@ class ChapterFile:
 
 
 def _is_excluded(path: Path, patterns: list[str]) -> bool:
-    name = path.name
-    return any(fnmatch.fnmatch(name, pat) for pat in patterns)
+    # macOS(APFS/HFS+)는 파일명을 NFD(분해형)로 저장하지만 book.yaml은 보통
+    # 에디터가 저장한 NFC(조합형)로 작성된다. 둘 다 화면엔 똑같이 보이지만
+    # fnmatch는 바이트 비교라 정규화형이 다르면 절대 매치되지 않는다 —
+    # 두 쪽 다 NFC로 맞춰야 exclude 패턴이 실제로 걸린다.
+    name = unicodedata.normalize("NFC", path.name)
+    return any(fnmatch.fnmatch(name, unicodedata.normalize("NFC", pat)) for pat in patterns)
 
 
 def _natural_sort_key(path: Path) -> list:
