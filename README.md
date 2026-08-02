@@ -120,13 +120,15 @@ MDBook-binder/
 │       ├── vendor/              # 번들된 mermaid.min.js + Noto Sans KR 폰트(오프라인 렌더링용)
 │       └── editor/              # 편집 SPA (index.html/editor.css/editor.js)
 └── tests/
-    ├── test_manifest.py          # 3단계 순서 해석 (5건)
+    ├── test_manifest.py          # 3단계 순서 해석 (7건)
     ├── test_html_book.py         # 섹션 id 충돌 회피·이미지 임베드 (3건)
     ├── test_check.py             # 사전 점검 + 설치 환경 점검 (10건)
     ├── test_editor.py            # 이미지 추가/교체 후 base64 임베드 (2건)
-    ├── test_mermaid_prerender.py # Mermaid 사전 렌더링 성공/폴백 (3건)
+    ├── test_mermaid_prerender.py # Mermaid 사전 렌더링 성공/폴백 (6건)
     ├── test_mermaid_wrap.py      # 라벨 자동 줄바꿈 (12건)
-    └── test_theme.py             # 색상 테마 프리셋 + book.yaml/--color 연동 (8건)
+    ├── test_theme.py             # 색상 테마 프리셋 + book.yaml/--color 연동 (8건)
+    ├── test_pdf_book.py          # PDF 페이지 경계 계산 순수 함수 (20건)
+    └── test_server.py            # 웹 에디터 Flask API (12건)
 ```
 
 ---
@@ -454,6 +456,14 @@ ruff check src tests
 ---
 
 ## 변경이력
+
+### 0.3.5 (2026-08-02)
+
+- **fix**: `playwright` 의존성에 버전 상한 추가(`>=1.62,<1.63`). 상한이 없으면
+  pip/pipx가 재설치·업그레이드 때마다 최신 playwright를 골라버리는데, 이때
+  요구하는 Chromium 빌드 리비전이 이미 받아둔 것과 어긋나 `check`에서
+  "미설치"로 오탐되는 문제가 있었다(특히 pipx는 앱마다 별도 격리 venv를
+  써서 더 자주 겪는다).
 
 ### 0.3.4 (2026-08-02)
 
