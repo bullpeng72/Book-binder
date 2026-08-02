@@ -13,6 +13,23 @@ def _write(root: Path, rel: str, content: str = "# Title\n\nbody\n") -> Path:
     return p
 
 
+def test_broken_book_yaml_falls_back_without_crashing(tmp_path: Path, capsys):
+    """book.yaml이 깨진 YAML이어도 빌드는 죽지 않고 자동 감지로 폴백해야 한다.
+
+    파싱 실패 경고에 YAMLError의 줄/컬럼 상세를 그대로 문자열 보간하면, 뒤에
+    이어지는 안내 문구가 여러 줄짜리 에러 메시지의 마지막 줄에 그대로
+    이어붙어 버린다 — 안내 문구가 항상 첫 줄에 온전히 나오는지 확인한다.
+    """
+    _write(tmp_path, "book.yaml", "a: [1, 2\nb: broken\n")
+
+    config = BookConfig.load(tmp_path)
+
+    assert config is None
+    out = capsys.readouterr().out
+    first_line = out.splitlines()[0]
+    assert first_line.endswith("book.yaml 파싱 실패 — 설정 없이 자동 감지로 진행")
+
+
 def test_natural_sort_fallback_includes_all_loose_files(tmp_path: Path):
     """1/1.5/2순위가 전부 실패하면(명명 규칙 없음) 트리 전체를 자연정렬로 포함한다."""
     _write(tmp_path, "b.md")

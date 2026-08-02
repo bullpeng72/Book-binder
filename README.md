@@ -122,7 +122,7 @@ MDBook-binder/
 └── tests/
     ├── test_manifest.py          # 3단계 순서 해석 (5건)
     ├── test_html_book.py         # 섹션 id 충돌 회피·이미지 임베드 (3건)
-    ├── test_check.py             # 사전 점검 (4건)
+    ├── test_check.py             # 사전 점검 + 설치 환경 점검 (10건)
     ├── test_editor.py            # 이미지 추가/교체 후 base64 임베드 (2건)
     ├── test_mermaid_prerender.py # Mermaid 사전 렌더링 성공/폴백 (3건)
     ├── test_mermaid_wrap.py      # 라벨 자동 줄바꿈 (12건)
@@ -273,7 +273,9 @@ README가 바뀌면 함께 갱신한다.
 
 실제로 HTML을 렌더링하지 않고 원본 마크다운만 훑어 빠르게 확인한다 — 챕터가
 아닌 문서(예: 집필 가이드 `.md`)가 잘못 포함되는 것을 빌드 후에야 발견하는
-일을 줄인다.
+일을 줄인다. 이어서 PDF 빌드(Playwright Chromium)·웹 에디터(Flask/Pillow) 등
+선택 기능(extras)의 설치 상태도 함께 점검해, 몇 분짜리 빌드를 끝까지 돌리고
+나서야 브라우저 엔진 미설치 오류를 보는 대신 미리 설치 명령을 안내받는다.
 
 ```bash
 mdbook-binder check ~/Docs/my-book
@@ -289,6 +291,13 @@ mdbook-binder check ~/Docs/my-book
 
 ⚠️  같은 제목을 쓰는 챕터 1건 (빌드 시 id에 -2, -3... 자동 부여됨):
    - "개요": Part_I_.../Chapter_01_x.md, Part_II_.../Chapter_01_y.md
+
+[선택 기능(extras) 설치 상태]
+  ⚠️  Mermaid 사전 렌더링 · PDF 빌드 (Playwright Chromium) — 미설치
+      → python -m playwright install chromium
+  ✅ PDF 병합 (pypdf)
+  ✅ 웹 에디터 (Flask)
+  ✅ 웹 에디터 이미지 처리 (Pillow)
 ```
 
 ### HTML 도서 빌드
@@ -397,7 +406,7 @@ python -m playwright install --with-deps chromium   # [pdf] 설치 시 1회
 ### 빠른 시작
 
 ```bash
-mdbook-binder check ~/Docs/my-book                 # 1. 빌드 전 사전 점검
+mdbook-binder check ~/Docs/my-book                 # 1. 빌드 전 사전 점검 + 설치 환경 점검
 mdbook-binder build html ~/Docs/my-book --out out.html   # 2. HTML 도서 빌드
 mdbook-binder edit out.html                        # 3. 브라우저에서 편집
 mdbook-binder build pdf ~/Docs/my-book --merge      # 4. (선택) 단권 PDF
@@ -407,7 +416,7 @@ mdbook-binder build pdf ~/Docs/my-book --merge      # 4. (선택) 단권 PDF
 
 ```bash
 pip install -e ".[dev,pdf,editor]"
-pytest tests/ -q      # 70개 테스트 (manifest 6 + html_book 3 + check 4 + editor 2 + mermaid_prerender 3 + mermaid_wrap 12 + theme 8 + pdf_book 20 + server 12)
+pytest tests/ -q      # 80개 테스트 (manifest 7 + html_book 3 + check 10 + editor 2 + mermaid_prerender 6 + mermaid_wrap 12 + theme 8 + pdf_book 20 + server 12)
 ruff check src tests
 ```
 

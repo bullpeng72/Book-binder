@@ -110,7 +110,7 @@ def prerender_mermaid(sections_html: str) -> tuple[str, bool]:
     try:
         svgs = _render_svgs(codes)
     except Exception as exc:
-        print(f"  ⚠️  Mermaid 사전 렌더링 불가({exc}) — 열람 시 CDN mermaid.js로 렌더링됩니다")
+        print(f"  ⚠️  Mermaid 사전 렌더링 불가({_summarize_exc(exc)}) — 열람 시 CDN mermaid.js로 렌더링됩니다")
         return sections_html, True
 
     needs_cdn = False
@@ -123,6 +123,21 @@ def prerender_mermaid(sections_html: str) -> tuple[str, bool]:
         div.append(BeautifulSoup(svg, "html.parser"))
 
     return str(soup), needs_cdn
+
+
+def _summarize_exc(exc: Exception) -> str:
+    """예외 메시지를 경고 한 줄에 끼워 넣기 안전한 한 줄로 요약한다.
+
+    Playwright의 "Executable doesn't exist" 예외는 안내용 ASCII 박스가 딸린
+    여러 줄짜리 메시지라, 그대로 `print(f"...({exc})...")`에 넣으면 뒤따르는
+    문장이 박스 마지막 줄에 그대로 이어붙어 버린다. 첫 줄만 취해 원인은
+    유지하되, 설치 미완료 케이스는 아예 설치 안내 문구로 바꿔치기한다.
+    """
+    text = str(exc).strip()
+    first_line = text.splitlines()[0] if text else type(exc).__name__
+    if "Executable doesn't exist" in first_line:
+        return "Playwright 브라우저 엔진 미설치 — python -m playwright install chromium"
+    return first_line
 
 
 def _render_svgs(codes: list[str]) -> list[str | None]:

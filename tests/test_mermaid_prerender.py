@@ -10,7 +10,7 @@ from unittest import mock
 
 import pytest
 
-from mdbook_binder.mermaid_prerender import prerender_mermaid
+from mdbook_binder.mermaid_prerender import _summarize_exc, prerender_mermaid
 
 
 def test_no_diagrams_never_needs_cdn():
@@ -41,3 +41,28 @@ def test_real_render_produces_inline_svg_and_skips_cdn():
     assert "<svg" in out
     assert 'data-prerendered="true"' in out
     assert "flowchart TD" not in out
+
+
+def test_summarize_exc_collapses_playwright_install_banner_to_one_line():
+    """Playwright의 "브라우저 미설치" 예외는 안내용 ASCII 박스가 딸린 여러 줄
+    메시지다 — 그대로 경고 한 줄에 끼워 넣으면 뒤 문장이 박스 마지막 줄에
+    이어붙어 버리므로, 설치 안내 한 줄로 바꿔치기됐는지 확인한다."""
+    exc = RuntimeError(
+        "BrowserType.launch: Executable doesn't exist at /some/cache/chrome-headless-shell\n"
+        "╔════════════════════════════════════════════════════════════╗\n"
+        "║ Looks like Playwright was just installed or updated.       ║\n"
+        "╚════════════════════════════════════════════════════════════╝"
+    )
+    summary = _summarize_exc(exc)
+    assert "\n" not in summary
+    assert "playwright install chromium" in summary
+
+
+def test_summarize_exc_keeps_only_first_line_of_other_errors():
+    exc = RuntimeError("Timeout 30000ms exceeded.\nsome extra multi-line detail\nyet more")
+    summary = _summarize_exc(exc)
+    assert summary == "Timeout 30000ms exceeded."
+
+
+def test_summarize_exc_falls_back_to_type_name_for_empty_message():
+    assert _summarize_exc(RuntimeError()) == "RuntimeError"

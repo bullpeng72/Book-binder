@@ -88,7 +88,11 @@ class BookConfig:
             data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         except yaml.YAMLError as exc:
             # 관대한 파싱 원칙 — 오타 하나가 빌드 전체를 죽이면 안 된다.
-            print(f"  ⚠️  book.yaml 파싱 실패({exc}), 설정 없이 자동 감지로 진행")
+            # YAMLError는 줄/컬럼 포인터가 딸린 여러 줄짜리 메시지라, 뒤에
+            # 이어질 안내 문구를 exc 안에 그대로 끼워 넣으면 마지막 줄에
+            # 붙어버린다 — 안내 문구를 먼저 보여주고 상세는 들여써서 뒤에 둔다.
+            detail = "\n".join(f"      {line}" for line in str(exc).splitlines())
+            print(f"  ⚠️  book.yaml 파싱 실패 — 설정 없이 자동 감지로 진행\n{detail}")
             return None
 
         order_data = data.get("order")

@@ -23,7 +23,7 @@ _COLOR_HELP = "사이드바/제목 강조색 테마 (기본: book.yaml의 color 
 @click.group(
     epilog="""\b
 빠른 시작:
-  mdbook-binder check ~/my-book               # 1. 빌드 전 순서·중복·누락 이미지 점검
+  mdbook-binder check ~/my-book               # 1. 빌드 전 순서·중복·누락 이미지·설치 환경 점검
   mdbook-binder build html ~/my-book          # 2. 검색 가능한 단일 HTML 생성
   mdbook-binder build pdf ~/my-book --merge   # 3. (선택) 한 권으로 병합한 PDF
   mdbook-binder edit ~/my-book/my-book.html   # 4. (선택) 브라우저에서 섹션 단위 편집
@@ -55,8 +55,9 @@ def main() -> None:
 def check_cmd(root: Path) -> None:
     """ROOT의 마크다운 코퍼스를 실제로 빌드하지 않고 미리 점검한다.
 
-    HTML/PDF를 만들지 않고 원본 마크다운만 훑으므로 Playwright 없이도, 큰
-    코퍼스에서도 즉시 끝난다. 다음 세 가지를 보여준다.
+    HTML/PDF를 만들지 않고 원본 마크다운만 훑으므로 큰 코퍼스에서도 즉시
+    끝난다(아래 세 가지). 이어서 선택 기능(extras)의 설치 상태를 점검하는데,
+    이쪽은 Playwright Chromium을 실제로 잠깐 띄워봐야 해서 몇 초 더 걸린다.
 
     \b
     - 순서 해석: book.yaml order → ```toc 매니페스트 → Part/Chapter 명명 규칙
@@ -69,11 +70,24 @@ def check_cmd(root: Path) -> None:
 
     챕터로 잘못 분류된 문서(예: 집필 가이드용 .md)를 빌드 후 HTML을 열어보고
     나서야 발견하는 일을 줄이기 위한 명령이다.
+
+    \b
+    마지막으로 PDF 빌드(Playwright Chromium)·웹 에디터(Flask/Pillow) 등
+    선택 기능(extras)의 설치 상태도 함께 점검해, 몇 분짜리 빌드를 끝까지
+    돌리고 나서야 "Playwright 브라우저 엔진이 설치되지 않았습니다" 같은
+    메시지를 보는 대신 미리 설치 명령을 안내받을 수 있다.
     """
-    from mdbook_binder.check import check_corpus, format_report
+    from mdbook_binder.check import (
+        check_corpus,
+        check_environment,
+        format_env_report,
+        format_report,
+    )
 
     result = check_corpus(root)
     print(format_report(root, result))
+    print()
+    print(format_env_report(check_environment()))
 
 
 @main.group("build")

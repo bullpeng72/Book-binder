@@ -447,7 +447,11 @@ async def _run_all(
                 await convert_one(chapter, browser, tip_pattern, out_path=out_path, custom_css=custom_css)
                 ok += 1
             except Exception as exc:
-                print(f"  ❌ {rel}: {exc}")
+                # 여러 챕터 결과가 한 줄씩 나열되는 목록이라, 예외가 여러 줄이면
+                # 목록 형태가 깨진다 — 첫 줄만 보여준다.
+                detail = str(exc).strip().splitlines()
+                summary = detail[0] if detail else type(exc).__name__
+                print(f"  ❌ {rel}: {summary}")
                 fail += 1
         await browser.close()
     return ok, fail
