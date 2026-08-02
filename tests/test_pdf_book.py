@@ -8,12 +8,65 @@
 자리라 회귀 테스트로 고정해둔다.
 """
 
+import io
+from pathlib import Path
+
+import pypdf
+
+from mdbook_binder.manifest import ChapterFile
 from mdbook_binder.pdf_book import (
+    _add_merge_outline,
     _chunk_boundaries,
     _is_occupied,
     _merge_bands,
     _nearest_safe_y,
 )
+
+
+def _blank_pdf(n_pages: int) -> io.BytesIO:
+    """도형/텍스트 없이 빈 페이지 n장짜리 PDF를 메모리에서 만든다.
+
+    `_add_merge_outline`은 이미 append된 writer의 페이지 수만 보고 북마크의
+    페이지 오프셋을 계산하므로, 실제 챕터 렌더링(Playwright) 없이도 검증할 수
+    있다.
+    """
+    w = pypdf.PdfWriter()
+    for _ in range(n_pages):
+        w.add_blank_page(width=200, height=200)
+    buf = io.BytesIO()
+    w.write(buf)
+    buf.seek(0)
+    return buf
+
+
+def _flatten_outline(items: list, reader: pypdf.PdfReader, depth: int = 0) -> list[tuple[str, int, int]]:
+    """pypdf의 중첩 outline 리스트를 (제목, 중첩깊이, 페이지번호) 튜플로 평탄화한다."""
+    flat: list[tuple[str, int, int]] = []
+    for item in items:
+        if isinstance(item, list):
+            flat.extend(_flatten_outline(item, reader, depth + 1))
+        else:
+            flat.append((item.title, depth, reader.get_destination_page_number(item)))
+    return flat
+
+
+def _build_and_read_outline(entries: list[tuple[ChapterFile, str, int]]) -> list[tuple[str, int, int]]:
+    """entries의 각 챕터를 빈 PDF로 순서대로 append하고 `_add_merge_outline`을
+    적용한 뒤, 그 결과를 다시 읽어 평탄화된 outline을 반환한다."""
+    writer = pypdf.PdfWriter()
+    for _chapter, _title, page_count in entries:
+        writer.append(_blank_pdf(page_count))
+    _add_merge_outline(writer, entries)
+
+    buf = io.BytesIO()
+    writer.write(buf)
+    buf.seek(0)
+    reader = pypdf.PdfReader(buf)
+    return _flatten_outline(reader.outline, reader)
+
+
+def _chapter(part_label: str | None) -> ChapterFile:
+    return ChapterFile(path=Path("/corpus/chapter.md"), part_label=part_label)
 
 
 class TestMergeBands:
@@ -116,3 +169,50 @@ class TestChunkBoundaries:
         for i in range(1, len(boundaries)):
             budget_ceiling += remaining[i - 1]
             assert boundaries[i] <= budget_ceiling + 1e-9
+
+
+class TestAddMergeOutline:
+    """병합 PDF(`--merge`) 북마크 — 챕터별 북마크를 달고, Part가 있으면 그
+    Part 제목 아래 중첩한다(README '알려진 한계' 개선 항목)."""
+
+    def test_chapters_without_part_get_flat_top_level_bookmarks(self):
+        entries = [
+            (_chapter(None), "서문", 2),
+            (_chapter(None), "맺음말", 1),
+        ]
+        flat = _build_and_read_outline(entries)
+
+        assert flat == [("서문", 0, 0), ("맺음말", 0, 2)]
+
+    def test_chapters_sharing_a_part_nest_under_one_part_bookmark(self):
+        entries = [
+            (_chapter("I부. 방법론"), "ch1", 2),
+            (_chapter("I부. 방법론"), "ch2", 3),
+            (_chapter("II부. 아키텍처"), "ch3", 1),
+        ]
+        flat = _build_and_read_outline(entries)
+
+        assert flat == [
+            ("I부. 방법론", 0, 0),
+            ("ch1", 1, 0),
+            ("ch2", 1, 2),
+            ("II부. 아키텍처", 0, 5),
+            ("ch3", 1, 5),
+        ]
+
+    def test_front_and_back_matter_stay_top_level_around_a_part(self):
+        """Part가 없는 서문/후주는 Part 챕터들 앞뒤에서 각자 최상위 북마크를
+        얻어야 한다 — 앞선 Part의 자식으로 잘못 중첩되면 안 된다."""
+        entries = [
+            (_chapter(None), "서문", 1),
+            (_chapter("I부. 방법론"), "ch1", 2),
+            (_chapter(None), "맺음말", 1),
+        ]
+        flat = _build_and_read_outline(entries)
+
+        assert flat == [
+            ("서문", 0, 0),
+            ("I부. 방법론", 0, 1),
+            ("ch1", 1, 1),
+            ("맺음말", 0, 3),
+        ]

@@ -19,7 +19,7 @@ from pathlib import Path
 
 from mdbook_binder.manifest import BookConfig, ChapterFile
 from mdbook_binder.mermaid_prerender import mermaid_font_face_css, mermaid_label_css
-from mdbook_binder.render import md_to_html, tip_start_pattern
+from mdbook_binder.render import extract_h1_text, md_to_html, tip_start_pattern
 from mdbook_binder.theme import theme_css
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -271,14 +271,19 @@ def _build_pdf_page_html(body_html: str, title: str, custom_css: str = "") -> st
 
 async def convert_one(
     chapter: ChapterFile, browser, tip_pattern, *, out_path: Path, custom_css: str = ""
-) -> Path:
-    """챕터 하나를 PDF로 변환한다. 긴 mermaid 다이어그램은 청크 스크린샷으로 대체 삽입한다."""
+) -> tuple[Path, str]:
+    """챕터 하나를 PDF로 변환한다. 긴 mermaid 다이어그램은 청크 스크린샷으로 대체 삽입한다.
+
+    반환하는 title은 챕터의 실제 h1 제목(없으면 파일명)이다 — PDF 문서 타이틀과
+    병합본 북마크(outline) 라벨에 공용으로 쓴다(html_book.py의 제목 추출 규칙과 동일).
+    """
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     raw = chapter.path.read_text(encoding="utf-8")
     body = md_to_html(raw, tip_pattern)
+    title = extract_h1_text(body) or chapter.path.stem
     html = _rewrite_img_paths(
-        _build_pdf_page_html(body, chapter.path.stem, custom_css), chapter.path.parent
+        _build_pdf_page_html(body, title, custom_css), chapter.path.parent
     )
 
     temp_dir = Path(tempfile.mkdtemp(prefix="book_binder_pdf_"))
@@ -422,7 +427,7 @@ async def convert_one(
 
     size_kb = out_path.stat().st_size // 1024
     print(f"  ✅ {chapter.path.name}  ({size_kb} KB)")
-    return out_path
+    return out_path, title
 
 
 async def _run_all(
@@ -448,6 +453,31 @@ async def _run_all(
     return ok, fail
 
 
+def _add_merge_outline(writer, entries: list[tuple[ChapterFile, str, int]]) -> None:
+    """병합 PDF에 챕터별 북마크(아웃라인)를 단다 — Part가 있으면 그 Part 제목
+    북마크 아래 챕터들을 중첩하고, Part가 없는 챕터(서문/후주 등)는 최상위에 둔다.
+
+    entries는 writer에 이미 순서대로 append된 챕터들과 1:1 대응해야 한다 —
+    각 항목의 page_count(그 챕터가 차지한 페이지 수)를 누적해 페이지 오프셋을
+    계산하므로, 순서나 개수가 append 순서와 어긋나면 북마크가 엉뚱한 페이지를
+    가리키게 된다. Part 전환 감지는 build_html()의 TOC 구성 로직과 동일하게
+    "직전 챕터와 part_label이 다른가"만 본다.
+    """
+    page_offset = 0
+    part_bookmark = None
+    last_part: str | None = None
+    for chapter, title, page_count in entries:
+        if chapter.part_label != last_part:
+            part_bookmark = (
+                writer.add_outline_item(chapter.part_label, page_offset)
+                if chapter.part_label
+                else None
+            )
+            last_part = chapter.part_label
+        writer.add_outline_item(title, page_offset, parent=part_bookmark)
+        page_offset += page_count
+
+
 async def _run_merged(
     chapters: list[ChapterFile], out_path: Path, tip_pattern, custom_css: str = ""
 ) -> bool:
@@ -461,18 +491,24 @@ async def _run_merged(
             browser = await _launch_chromium(pw)
             if browser is None:
                 return False
-            part_paths: list[Path] = []
+            parts: list[tuple[Path, str]] = []
             try:
                 for idx, chapter in enumerate(chapters):
                     part_out = temp_dir / f"{idx:03d}.pdf"
-                    await convert_one(chapter, browser, tip_pattern, out_path=part_out, custom_css=custom_css)
-                    part_paths.append(part_out)
+                    _, title = await convert_one(
+                        chapter, browser, tip_pattern, out_path=part_out, custom_css=custom_css
+                    )
+                    parts.append((part_out, title))
             finally:
                 await browser.close()
 
         writer = pypdf.PdfWriter()
-        for part_path in part_paths:
+        outline_entries: list[tuple[ChapterFile, str, int]] = []
+        for chapter, (part_path, title) in zip(chapters, parts):
+            start = len(writer.pages)
             writer.append(str(part_path))
+            outline_entries.append((chapter, title, len(writer.pages) - start))
+        _add_merge_outline(writer, outline_entries)
         with open(out_path, "wb") as f:
             writer.write(f)
         writer.close()

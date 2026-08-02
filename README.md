@@ -325,7 +325,9 @@ mdbook-binder build pdf <코퍼스_루트> --color green           # 색상 테�
 축소하며, CSS가 강제로 확대해 여러 페이지에 걸쳐 표시되거나 그 앞뒤로 빈
 페이지가 삽입되는 문제를 방지한다. 병합도 각 챕터를 동일한 코드 경로로
 개별 렌더링한 뒤 pypdf로 PDF 객체 레벨에서 합쳐, 개별 생성과 병합 생성의
-폰트 크기·다이어그램 해상도가 항상 동일하다.
+폰트 크기·다이어그램 해상도가 항상 동일하다. 병합본에는 챕터별 북마크가
+자동으로 붙고, Part가 있는 코퍼스는 Part 제목 아래 챕터들이 중첩된
+아웃라인으로 구성돼 PDF 뷰어 사이드바에서 바로 챕터로 이동할 수 있다.
 
 ### HTML 편집
 
@@ -405,7 +407,7 @@ mdbook-binder build pdf ~/Docs/my-book --merge      # 4. (선택) 단권 PDF
 
 ```bash
 pip install -e ".[dev,pdf,editor]"
-pytest tests/ -q      # 37개 테스트 (manifest 5 + html_book 3 + check 4 + editor 2 + mermaid_prerender 3 + mermaid_wrap 12 + theme 8)
+pytest tests/ -q      # 70개 테스트 (manifest 6 + html_book 3 + check 4 + editor 2 + mermaid_prerender 3 + mermaid_wrap 12 + theme 8 + pdf_book 20 + server 12)
 ruff check src tests
 ```
 
@@ -429,11 +431,6 @@ ruff check src tests
   하는 `NotoSansKR-Regular.woff2`(약 2.1MB)를 패키지에 번들했다(합계 약
   5.4MB) — 생성되는 각 HTML 도서 파일 크기와는 무관하고, `pip install
   mdbook-binder` 1회 설치 용량에만 영향을 준다.
-- **병합 PDF(`--merge`)에는 챕터별 북마크(아웃라인)가 없다**: `pypdf`로 개별
-  챕터 PDF를 순서대로 이어붙이기만 하고(`PdfWriter.append()`에 `outline_item`을
-  넘기지 않음) 원본 챕터 PDF 자체에도 아웃라인이 없으므로, 병합본을 PDF
-  뷰어로 열어도 사이드바 목차(챕터 점프)가 생성되지 않는다 — 목차는 도서
-  본문에 렌더된 페이지로만 확인 가능하다.
 - **PDF/HTML 부분 빌드 미지원**: 원본 `build_pdf_chapters.py`가 갖고 있던
   "파일/패턴 지정 부분 변환"은 아직 이식하지 않았다 — 항상 코퍼스 전체를
   대상으로 빌드한다.
@@ -443,14 +440,15 @@ ruff check src tests
 - **`Part_<로마숫자>_...` 명명 규칙 감지(2순위)는 `Appendix/`만 특별 취급**:
   그 외 비-Part 디렉토리는 3순위 자연정렬로만 잡힌다 — 필요하면 `book.yaml`의
   `order.files`로 명시하는 게 안전하다.
-- **`pdf_book.py`/`editor/`는 회귀 테스트가 일부만 있다**: 이미지 추가/교체
-  후 base64 임베드가 유지되는지는 `test_editor.py`로, 페이지 경계 청크 분할
-  순수 함수(`_merge_bands`/`_nearest_safe_y`/`_chunk_boundaries` 등)는
-  `test_pdf_book.py`로, `/api/images/serve` 경로 화이트리스트는
-  `test_server.py`로 고정돼 있다. 다만 Playwright를 실제로 구동하는 PDF
-  렌더링 자체와 섹션 CRUD·다이어그램 편집 API는 실제 코퍼스로 수동 검증만
-  마쳤을 뿐 `manifest.py`/`html_book.py`/`check.py`만큼 pytest로 고정돼
-  있지는 않다.
+- **`pdf_book.py`/`editor/`는 Playwright가 필요한 부분만 회귀 테스트가 없다**:
+  이미지 추가/교체 후 base64 임베드 유지는 `test_editor.py`로, 페이지 경계
+  청크 분할 순수 함수(`_merge_bands`/`_nearest_safe_y`/`_chunk_boundaries`
+  등)와 병합 PDF 북마크 구성(`_add_merge_outline`)은 `test_pdf_book.py`로,
+  `/api/images/serve` 경로 화이트리스트·섹션 CRUD·이미지 스테이징·요소
+  (이미지/다이어그램) 편집 API는 `test_server.py`로 고정돼 있다. 다만
+  Playwright/Chromium을 실제로 구동하는 PDF 렌더링 자체(`convert_one`)는
+  실제 코퍼스로 수동 검증만 마쳤을 뿐 `manifest.py`/`html_book.py`/
+  `check.py`만큼 pytest로 고정돼 있지는 않다.
 - **PyPI 배포와 `Unreleased` 변경이력 사이에 시차가 있다**: PyPI의
   `mdbook-binder`는 최신 태그 버전(`pyproject.toml` 기준)까지만 반영되므로,
   이 문서의 [변경이력](#변경이력) `Unreleased` 항목은 아직 PyPI에 올라가지
