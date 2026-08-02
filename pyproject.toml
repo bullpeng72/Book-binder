@@ -19,7 +19,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-pdf = ["playwright>=1.40", "pypdf>=4.0"]
+# playwright는 patch 버전 안에서도 요구하는 Chromium 빌드 리비전이 바뀔 수 있고,
+# pip/pipx가 상한 없이 최신을 골라버리면(특히 pipx는 앱마다 별도 venv라
+# 재설치·업그레이드 때마다 조용히 최신으로 갈아탄다) 이미 받아둔 리비전과 어긋나
+# check에서 "미설치"로 보인다 — minor 단위로 못박아 재현 가능하게 고정한다.
+pdf = ["playwright>=1.62,<1.63", "pypdf>=4.0"]
 editor = ["flask>=3.0", "pillow>=10.0"]
 dev = ["pytest>=8.0", "ruff>=0.4"]
 
