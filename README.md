@@ -121,7 +121,7 @@ MDBook-binder/
 │       └── editor/              # 편집 SPA (index.html/editor.css/editor.js)
 └── tests/
     ├── test_manifest.py          # 3단계 순서 해석 (7건)
-    ├── test_html_book.py         # 섹션 id 충돌 회피·이미지 임베드 (3건)
+    ├── test_html_book.py         # 섹션 id 충돌 회피·이미지 임베드·챕터 간 링크 재작성 (7건)
     ├── test_check.py             # 사전 점검 + 설치 환경 점검 (10건)
     ├── test_editor.py            # 이미지 추가/교체 후 base64 임베드 (2건)
     ├── test_mermaid_prerender.py # Mermaid 사전 렌더링 성공/폴백 (6건)
@@ -418,7 +418,7 @@ mdbook-binder build pdf ~/Docs/my-book --merge      # 4. (선택) 단권 PDF
 
 ```bash
 pip install -e ".[dev,pdf,editor]"
-pytest tests/ -q      # 80개 테스트 (manifest 7 + html_book 3 + check 10 + editor 2 + mermaid_prerender 6 + mermaid_wrap 12 + theme 8 + pdf_book 20 + server 12)
+pytest tests/ -q      # 84개 테스트 (manifest 7 + html_book 7 + check 10 + editor 2 + mermaid_prerender 6 + mermaid_wrap 12 + theme 8 + pdf_book 20 + server 12)
 ruff check src tests
 ```
 
@@ -456,6 +456,15 @@ ruff check src tests
 ---
 
 ## 변경이력
+
+### 0.3.6 (2026-08-05)
+
+- **feat**: 챕터 간 상대경로 `.md` 링크(`[§5](../Part_I/Chapter_05_*.md)`)를
+  빌드 시점에 같은 HTML 안의 `#앵커`로 자동 재작성 — 이전에는 존재하지 않는
+  로컬 파일을 가리키는 죽은 링크로 남았다. book.yaml이 제외한 파일이나 외부
+  URL은 원본 href를 그대로 둔다. macOS(NFD) 파일명과 마크다운 본문(NFC)의
+  정규화 불일치도 고려해 매칭한다.
+- 회귀 테스트 4건 추가(총 84개).
 
 ### 0.3.5 (2026-08-02)
 
