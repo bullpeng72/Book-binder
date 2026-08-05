@@ -17,7 +17,7 @@ from html import escape as _html_escape
 from pathlib import Path
 
 from mdbook_binder.imgembed import image_to_data_uri
-from mdbook_binder.manifest import LOCALE_STRINGS, BookConfig, resolve
+from mdbook_binder.manifest import LOCALE_STRINGS, BookConfig, ChapterFile, resolve
 from mdbook_binder.mermaid_prerender import (
     mermaid_font_face_css,
     mermaid_label_css,
@@ -57,6 +57,41 @@ def _dedupe_slug(slug: str, seen: dict[str, int]) -> str:
     count = seen.get(slug, 0)
     seen[slug] = count + 1
     return slug if count == 0 else f"{slug}-{count + 1}"
+
+
+def _rewrite_internal_links(html_body: str, chap_dir: Path, path_to_sid: dict[str, str]) -> str:
+    """챕터 간 상대경로 .md 링크를 같은 HTML 안의 #앵커로 재작성한다.
+
+    여러 마크다운 파일을 한 HTML로 이어붙이면 `[§5](../Part_I/Chapter_05_*.md)` 같은
+    상호참조가 그대로 살아남아, 브라우저에서 열었을 때 존재하지 않는 로컬 .md 파일로
+    연결되는 죽은 링크가 된다 — 정작 그 챕터의 실제 내용은 같은 HTML 안 `#{sid}`
+    섹션에 이미 들어있는데도 그렇다. 이 함수는 빌드에 포함된 다른 챕터를 가리키는
+    링크만 골라 해당 섹션의 앵커로 바꾼다.
+
+    Skills/ 처럼 book.yaml이 의도적으로 코퍼스에서 제외한 파일이나 외부 URL은
+    `path_to_sid`에 없으므로 원본 href를 그대로 둔다 — imgembed의 누락 이미지
+    처리와 같은 관대한 파싱 원칙이다. 서브섹션 fragment(`#절`)는 파일 단위로만
+    id를 추적하므로 매핑 대상에서 제외하고 버린다 — 챕터 최상단으로라도 연결되는
+    것이 죽은 링크보다는 낫다.
+
+    `path_to_sid`의 키는 NFC로 정규화돼 있다고 가정한다(manifest._robust_children와
+    동일한 계약) — macOS(APFS)는 파일명을 NFD(분해형)로 저장하지만 마크다운 본문의
+    링크 텍스트는 보통 에디터가 저장한 NFC(조합형)라, 두 정규화형을 맞추지 않으면
+    `.resolve()`를 거쳐도 바이트가 달라 dict 조회가 항상 실패한다.
+    """
+
+    def _replace(m: re.Match) -> str:
+        href = m.group(1)
+        if href.startswith(("http://", "https://", "data:", "#", "mailto:")):
+            return m.group(0)
+        path_part, _, _fragment = href.partition("#")
+        if not path_part.endswith(".md"):
+            return m.group(0)
+        target = unicodedata.normalize("NFC", str((chap_dir / path_part).resolve()))
+        sid = path_to_sid.get(target)
+        return f'href="#{sid}"' if sid else m.group(0)
+
+    return re.sub(r'href="([^"]+)"', _replace, html_body)
 
 
 def _embed_images_as_data_uri(
@@ -111,6 +146,10 @@ def build_html(
     seen_slugs: dict[str, int] = {}
     missing_images: list[tuple[Path, str]] = []
 
+    # 1패스 — 렌더링 + section id 확정. 링크 재작성은 아직 하지 않는다: 앞쪽
+    # 챕터가 뒤쪽 챕터를 가리키는 상호참조는 이 시점엔 대상 sid를 아직 모른다.
+    rendered: list[tuple[ChapterFile, str, str, str]] = []
+    path_to_sid: dict[str, str] = {}
     for chap in chapters:
         print(f"  \U0001f4c4 {chap.path.relative_to(root)}")
         raw = chap.path.read_text(encoding="utf-8")
@@ -119,6 +158,13 @@ def build_html(
 
         sid = _dedupe_slug(_section_id(chap.path, html_body, config), seen_slugs)
         title_text = extract_h1_text(html_body) or chap.path.stem
+        path_to_sid[unicodedata.normalize("NFC", str(chap.path.resolve()))] = sid
+        rendered.append((chap, sid, title_text, html_body))
+
+    # 2패스 — 이제 코퍼스 전체의 path→sid가 확정됐으므로 챕터 간 상호참조
+    # 링크를 #앵커로 재작성한다.
+    for chap, sid, title_text, html_body in rendered:
+        html_body = _rewrite_internal_links(html_body, chap.path.parent, path_to_sid)
         html_body = demote_headings(html_body)
 
         if chap.part_label and chap.part_label != last_part:

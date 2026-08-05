@@ -1,5 +1,6 @@
 """html_book.build_html()의 회귀 테스트 — 특히 섹션 id 충돌 회피."""
 
+import unicodedata
 from pathlib import Path
 
 from mdbook_binder.html_book import build_html
@@ -52,3 +53,82 @@ def test_image_embedded_as_base64_data_uri(tmp_path: Path):
 
     assert 'src="data:image/png;base64,' in html
     assert "images/pic.png" not in html.replace('src="data:image/png;base64,', "")
+
+
+def test_cross_chapter_md_link_rewritten_to_anchor(tmp_path: Path):
+    """다른 챕터를 가리키는 상대경로 .md 링크는 같은 HTML 안의 #앵커로 바뀌어야 한다.
+
+    회귀 대상: 예전엔 [본문](../Part_II_B/Chapter_02_y.md) 같은 상호참조가 그대로
+    남아, HTML 단독으로 열었을 때 존재하지 않는 로컬 파일을 가리키는 죽은 링크가 됐다.
+    앞쪽 챕터가 뒤쪽 챕터를 참조하는 순방향 케이스까지 확인한다(2패스 구조의 핵심).
+    """
+    _write(
+        tmp_path,
+        "Part_I_A/Chapter_01_x.md",
+        "# X\n\n뒤쪽 챕터를 가리키는 [링크](../Part_II_B/Chapter_02_y.md) 있음.\n",
+    )
+    _write(tmp_path, "Part_II_B/Chapter_02_y.md", "# Y\n\n앞쪽 챕터로 [역참조](../Part_I_A/Chapter_01_x.md).\n")
+
+    out = build_html(tmp_path, config=None, out_path=tmp_path / "out.html")
+    html = out.read_text(encoding="utf-8")
+    body = html.split('<main id="main">', 1)[1]
+
+    assert '<a href="#y"' in body, "순방향 참조(X→Y)가 앵커로 바뀌지 않음"
+    assert '<a href="#x"' in body, "역방향 참조(Y→X)가 앵커로 바뀌지 않음"
+    assert ".md" not in body
+
+
+def test_link_to_excluded_file_left_unchanged(tmp_path: Path):
+    """빌드 코퍼스 밖의 .md(예: Skills/ 같은 의도적 제외 디렉토리)를 가리키는 링크는
+    앵커로 바꿀 대상이 없으므로 원본 href를 그대로 유지해야 한다."""
+    _write(tmp_path, "Part_I_A/Chapter_01_x.md", "# X\n\n[스킬 템플릿](../Skills/foo/SKILL.md) 참고.\n")
+    _write(tmp_path, "Skills/foo/SKILL.md", "skill 파일 — 챕터 코퍼스 밖")
+
+    out = build_html(tmp_path, config=None, out_path=tmp_path / "out.html")
+    html = out.read_text(encoding="utf-8")
+
+    assert 'href="../Skills/foo/SKILL.md"' in html
+
+
+def test_external_and_fragment_only_links_untouched(tmp_path: Path):
+    _write(
+        tmp_path,
+        "chapter.md",
+        "# 챕터\n\n[외부](https://example.com/x.md) · [내부북마크](#어딘가)\n",
+    )
+
+    out = build_html(tmp_path, config=None, out_path=tmp_path / "out.html")
+    html = out.read_text(encoding="utf-8")
+
+    assert 'href="https://example.com/x.md"' in html
+
+
+def test_cross_chapter_link_survives_nfc_nfd_mismatch(tmp_path: Path):
+    """한글 파일명이 걸린 상호참조는 NFC/NFD 정규화형이 달라도 앵커로 바뀌어야 한다.
+
+    회귀 대상: macOS(APFS)는 파일명을 디스크에 NFD(분해형, "의" = ㅇ+ㅢ 2코드포인트)로
+    저장하지만, 마크다운 본문 안의 링크 텍스트는 보통 에디터가 저장한 NFC(조합형,
+    "의" = 1코드포인트)다. 두 정규화형을 맞추지 않고 dict 키로 비교하면 `.resolve()`를
+    거쳐도 바이트가 달라 조회가 항상 실패해, 파일이 실제로 존재하는데도 원본 .md
+    href가 그대로 남는다.
+
+    Linux/Windows는 파일명을 정규화 없이 받은 바이트 그대로 저장하므로, 그냥 NFC
+    문자열로 파일을 쓰면 이 불일치 자체가 재현되지 않는다(macOS에서만 우연히
+    재현되는 테스트가 되어버린다) — 그래서 대상 파일명을 `rename()`으로 **명시적으로**
+    NFD로 바꿔, 이 프로젝트에 CI가 아직 없어 어느 OS에서 돌든 결정적으로 같은
+    조건을 재현하게 만든다. 링크 텍스트는 그대로 NFC로 남겨 실제 버그 조건(파일명
+    NFD ↔ 링크 텍스트 NFC)을 정확히 재현한다.
+    """
+    _write(tmp_path, "Part_I_A/Chapter_01_x.md", "# X\n\n[다음](../Part_II_B/Chapter_02_정의.md) 챕터.\n")
+    nfc_target = _write(tmp_path, "Part_II_B/Chapter_02_정의.md", "# Y\n\n본문.\n")
+    nfd_name = unicodedata.normalize("NFD", nfc_target.name)
+    assert nfd_name != nfc_target.name, "테스트 전제 오류: 이 이름엔 애초에 NFC/NFD 차이가 없음"
+    nfd_target = nfc_target.with_name(nfd_name)
+    nfc_target.rename(nfd_target)
+
+    out = build_html(tmp_path, config=None, out_path=tmp_path / "out.html")
+    html = out.read_text(encoding="utf-8")
+    body = html.split('<main id="main">', 1)[1]
+
+    assert '<a href="#' in body, "한글 파일명 상호참조가 앵커로 바뀌지 않음(NFC/NFD 불일치 회귀)"
+    assert ".md" not in body
