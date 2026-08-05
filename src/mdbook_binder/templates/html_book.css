@@ -61,6 +61,10 @@ li { margin: 4px 0; }
 strong { color: var(--primary); font-weight: 700; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
+/* strong 안에 링크가 중첩되면(예: `**[출처](url)**`) a의 명시적 color가 strong의
+   상속색을 이겨 같은 "강조" 표시인데 색만 갈라져 보인다 — 볼드 강조는 항상
+   strong의 색으로 통일한다. */
+strong a { color: inherit; }
 hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
 
 code {
